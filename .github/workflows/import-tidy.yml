@@ -29,7 +29,7 @@ jobs:
 
       - name: Import subtree (preserve history)
         run: |
-          git subtree add --prefix=tidy-toters tidy main
+          git remote set-head tidy --auto SRC_BRANCH=$(git symbolic-ref --short refs/remotes/tidy/HEAD | sed 's@^tidy/@@') echo "Using source branch: $SRC_BRANCH" git subtree add --prefix=tidy-toters tidy "$SRC_BRANCH"
 
       - name: Push import branch
         env:
