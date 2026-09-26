@@ -1,5 +1,5 @@
 const MODEL="onnx-community/Qwen2.5-0.5B-Instruct";
-const WORKER_URL="./qwen-worker-v1.16.js";
+const WORKER_URL="./qwen-worker-v1.17.js";
 let worker=null,seq=0;
 const pending=new Map();
 
