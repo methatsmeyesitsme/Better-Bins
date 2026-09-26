@@ -144,12 +144,12 @@ button:disabled{opacity:.5;cursor:default;}
 
 <div class="view" id="view-ai"><div class="wrap">
   <h1>G3D AI</h1>
-  <p class="sub">Internal design tool. Describe a part in plain language — a local parser turns it into a geometry spec, then the same real geometry engine builds it. No API key, nothing leaves this page.</p>
+  <p class="sub">Internal design tool. Describe any 3D object in plain language. Qwen creates a multi-part geometry plan, then G3D builds the actual custom mesh locally. No API key, nothing leaves this page.</p>
 
   <div class="card">
     <p class="sectitle">Describe the part</p>
-    <textarea id="aiPrompt" placeholder="Describe the 3D model you want... e.g. &quot;Make me a 40mm cube with a gyroid lattice and thick outer walls.&quot;"></textarea>
-    <p class="hint" style="margin-top:8px;margin-bottom:0;">Qwen runs locally in your browser and converts your request into the geometry spec. The model loads only when you generate your first AI design. Falls back to a basic built-in parser if the local model cannot load.</p>
+    <textarea id="aiPrompt" placeholder="Describe anything you want to build... e.g. &quot;Make a phone stand with a 15° back, a front lip, and a cable slot.&quot;"></textarea>
+    <p class="hint" style="margin-top:8px;margin-bottom:0;">Qwen runs locally in your browser and plans the geometry. The model loads only when you generate your first AI design. Custom parts are built by G3D's procedural CSG engine.</p>
   </div>
 
   <button id="aiGenBtn">GENERATE STL</button>
@@ -185,68 +185,133 @@ function roundedBox(x,y,z,hx,hy,hz,r){
   return outside+inside-r;
 }
 function sphereSDF(x,y,z,R){ return Math.hypot(x,y,z)-R; }
-function cylinderSDF(x,y,z,R,halfH,r){
-  const dxy=Math.hypot(x,y)-(R-r);
-  const dz=Math.abs(z)-(halfH-r);
-  const ax=Math.max(dxy,0), az=Math.max(dz,0);
-  const outside=Math.hypot(ax,az);
-  const inside=Math.min(Math.max(dxy,dz),0);
-  return outside+inside-r;
+function cappedCylinderSDF(x,y,z,R,halfH){
+  const qx=Math.hypot(x,y)-R, qz=Math.abs(z)-halfH;
+  const ax=Math.max(qx,0), az=Math.max(qz,0);
+  return Math.hypot(ax,az)+Math.min(Math.max(qx,qz),0);
+}
+function capsuleSDF(x,y,z,R,halfLen){
+  const qz=Math.max(Math.abs(z)-halfLen,0);
+  return Math.hypot(Math.hypot(x,y),qz)-R;
 }
 function torusSDF(x,y,z,Rm,rm){
-  const qx=Math.hypot(x,y)-Rm;
-  return Math.hypot(qx,z)-rm;
+  return Math.hypot(Math.hypot(x,y)-Rm,z)-rm;
 }
-function gyroid(x,y,z,k){ return Math.sin(k*x)*Math.cos(k*y)+Math.sin(k*y)*Math.cos(k*z)+Math.sin(k*z)*Math.cos(k*x); }
-function schwarzP(x,y,z,k){ return Math.cos(k*x)+Math.cos(k*y)+Math.cos(k*z); }
-function diamond(x,y,z,k){
-  return Math.sin(k*x)*Math.sin(k*y)*Math.sin(k*z)+Math.sin(k*x)*Math.cos(k*y)*Math.cos(k*z)
-       + Math.cos(k*x)*Math.sin(k*y)*Math.cos(k*z)+Math.cos(k*x)*Math.cos(k*y)*Math.sin(k*z);
+function coneSDF(x,y,z,r1,r2,halfH){
+  const h=halfH*2;
+  const qz=z+halfH;
+  const t=Math.max(0,Math.min(1,qz/h));
+  const r=r1+(r2-r1)*t;
+  const radial=Math.hypot(x,y)-r;
+  const cap=Math.max(Math.abs(z)-halfH,0);
+  return Math.hypot(Math.max(radial,0),cap)+Math.min(Math.max(radial,Math.abs(z)-halfH),0);
 }
-const patternFns = {gyroid, schwarzp: schwarzP, diamond};
-
-function makeSolidSDF(cfg){
-  const cr = cfg.rounded ? cfg.cornerRadius : 0;
-  if(cfg.shape==='cube'){
-    const h = cfg.size/2;
-    return {sdf:(x,y,z)=>roundedBox(x,y,z,h-cr,h-cr,h-cr,cr), span:cfg.size, bmin:[-(h+1),-(h+1),-(h+1)], bmax:[h+1,h+1,h+1]};
-  } else if(cfg.shape==='sphere'){
-    const R=cfg.diameter/2;
-    return {sdf:(x,y,z)=>sphereSDF(x,y,z,R), span:cfg.diameter, bmin:[-(R+1),-(R+1),-(R+1)], bmax:[R+1,R+1,R+1]};
-  } else if(cfg.shape==='cylinder'){
-    const R=cfg.diameter/2, halfH=cfg.height/2;
-    return {sdf:(x,y,z)=>cylinderSDF(x,y,z,R,halfH,cr), span:Math.max(cfg.diameter,cfg.height), bmin:[-(R+1),-(R+1),-(halfH+1)], bmax:[R+1,R+1,halfH+1]};
-  } else {
-    const Rm=(cfg.outerDiameter-cfg.tubeDiameter)/2, rm=cfg.tubeDiameter/2;
-    return {sdf:(x,y,z)=>torusSDF(x,y,z,Rm,rm), span:cfg.outerDiameter, bmin:[-(cfg.outerDiameter/2+1),-(cfg.outerDiameter/2+1),-(rm+1)], bmax:[cfg.outerDiameter/2+1,cfg.outerDiameter/2+1,rm+1]};
+function pointSegmentDistance2D(px,py,ax,ay,bx,by){
+  const dx=bx-ax,dy=by-ay;
+  const l2=dx*dx+dy*dy;
+  if(!l2) return Math.hypot(px-ax,py-ay);
+  const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));
+  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
+}
+function polygonSDF2D(x,y,pts){
+  let inside=false, minD=Infinity;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const a=pts[i],b=pts[j];
+    minD=Math.min(minD,pointSegmentDistance2D(x,y,a[0],a[1],b[0],b[1]));
+    if(((a[1]>y)!==(b[1]>y)) && x < (b[0]-a[0])*(y-a[1])/(b[1]-a[1]+1e-12)+a[0]) inside=!inside;
   }
+  return inside ? -minD : minD;
+}
+function extrudedPolygonSDF(x,y,z,pts,depth){
+  const d2=polygonSDF2D(x,y,pts), dz=Math.abs(z)-depth/2;
+  return Math.hypot(Math.max(d2,0),Math.max(dz,0))+Math.min(Math.max(d2,dz),0);
+}
+function inverseRotate(x,y,z,rot){
+  let X=x,Y=y,Z=z;
+  const rz=-(rot[2]||0), cz=Math.cos(rz), sz=Math.sin(rz);
+  [X,Y]=[X*cz-Y*sz,X*sz+Y*cz];
+  const ry=-(rot[1]||0), cy=Math.cos(ry), sy=Math.sin(ry);
+  [X,Z]=[X*cy+Z*sy,-X*sy+Z*cy];
+  const rx=-(rot[0]||0), cx=Math.cos(rx), sx=Math.sin(rx);
+  [Y,Z]=[Y*cx-Z*sx,Y*sx+Z*cx];
+  return [X,Y,Z];
+}
+function transformLocal(x,y,z,p){
+  const pos=p.position||[0,0,0], rot=p.rotation||[0,0,0], sc=p.scale||[1,1,1];
+  x-=pos[0]||0; y-=pos[1]||0; z-=pos[2]||0;
+  [x,y,z]=inverseRotate(x,y,z,rot);
+  x/=Math.abs(sc[0]||1); y/=Math.abs(sc[1]||1); z/=Math.abs(sc[2]||1);
+  return [x,y,z];
+}
+function partBounds(p){
+  const pos=p.position||[0,0,0], sc=p.scale||[1,1,1];
+  let r=10, z=10;
+  switch(p.type){
+    case 'sphere': r=p.radius||20; z=r; break;
+    case 'cylinder': case 'tube': r=(p.radius||20); z=(p.height||40)/2; break;
+    case 'cone': r=Math.max(p.radius||20,p.radius2||10); z=(p.height||40)/2; break;
+    case 'torus': r=(p.majorRadius||20)+(p.minorRadius||5); z=p.minorRadius||5; break;
+    case 'capsule': r=p.radius||10; z=(p.length||40)/2+r; break;
+    case 'box': case 'roundedBox': r=(p.size?.[0]||40)/2; z=(p.size?.[2]||40)/2; r=Math.max(r,(p.size?.[1]||40)/2); break;
+    case 'prism': r=0; for(const q of (p.points||[])) r=Math.max(r,Math.hypot(q[0],q[1])); z=(p.depth||20)/2; break;
+    default: r=25; z=25;
+  }
+  const s=Math.max(Math.abs(sc[0]||1),Math.abs(sc[1]||1),Math.abs(sc[2]||1));
+  r*=s; z*=s;
+  return [[pos[0]-r,pos[1]-r,pos[2]-z],[pos[0]+r,pos[1]+r,pos[2]+z]];
+}
+function makePartSDF(p){
+  return (x,y,z)=>{
+    [x,y,z]=transformLocal(x,y,z,p);
+    switch(p.type){
+      case 'sphere': return sphereSDF(x,y,z,p.radius||20);
+      case 'cylinder': return cappedCylinderSDF(x,y,z,p.radius||20,(p.height||40)/2);
+      case 'tube': return Math.max(cappedCylinderSDF(x,y,z,p.outerRadius||20,(p.height||40)/2),-cappedCylinderSDF(x,y,z,p.innerRadius||15,(p.height||40)/2+0.2));
+      case 'cone': return coneSDF(x,y,z,p.radius||20,p.radius2||10,(p.height||40)/2);
+      case 'torus': return torusSDF(x,y,z,p.majorRadius||20,p.minorRadius||5);
+      case 'capsule': return capsuleSDF(x,y,z,p.radius||10,(p.length||40)/2);
+      case 'roundedBox': {
+        const s=p.size||[40,40,40], rr=Math.min(p.radius||4,s[0]/2,s[1]/2,s[2]/2);
+        return roundedBox(x,y,z,s[0]/2-rr,s[1]/2-rr,s[2]/2-rr,rr);
+      }
+      case 'box': default: {
+        const s=p.size||[40,40,40];
+        return Math.max(Math.abs(x)-s[0]/2,Math.max(Math.abs(y)-s[1]/2,Math.abs(z)-s[2]/2));
+      }
+      case 'prism': return extrudedPolygonSDF(x,y,z,p.points||[[-20,-20],[20,-20],[20,20],[-20,20]],p.depth||20);
+    }
+  };
 }
 function buildFieldAndBounds(spec){
-  const patternFn = patternFns[spec.pattern] || gyroid;
-  let solid, span, bmin, bmax;
-  if(spec.primary){
-    const A = makeSolidSDF(spec.primary);
-    span = A.span; bmin=A.bmin.slice(); bmax=A.bmax.slice();
-    if(spec.secondary){
-      const B = makeSolidSDF(spec.secondary);
-      bmin = bmin.map((v,i)=>Math.min(v,B.bmin[i]));
-      bmax = bmax.map((v,i)=>Math.max(v,B.bmax[i]));
-      if(spec.secondary.op==='subtract') solid=(x,y,z)=>Math.max(A.sdf(x,y,z), -B.sdf(x,y,z));
-      else solid=(x,y,z)=>Math.min(A.sdf(x,y,z), B.sdf(x,y,z));
-    } else solid = A.sdf;
-  } else {
-    const A = makeSolidSDF(spec);
-    solid=A.sdf; span=A.span; bmin=A.bmin; bmax=A.bmax;
-  }
-  const k = 2*Math.PI*spec.periods/span;
-  const field = (x,y,z)=>{
-    const F = patternFn(x,y,z,k);
-    const shell = Math.abs(F) - (k*spec.thickness/2);
-    return Math.max(shell, solid(x,y,z));
+  const parts=Array.isArray(spec.parts)&&spec.parts.length?spec.parts:[{type:'box',size:[40,40,40]}];
+  const funcs=parts.map(makePartSDF);
+  let bmin=[Infinity,Infinity,Infinity], bmax=[-Infinity,-Infinity,-Infinity];
+  parts.forEach(p=>{
+    const [lo,hi]=partBounds(p);
+    for(let i=0;i<3;i++){ bmin[i]=Math.min(bmin[i],lo[i]); bmax[i]=Math.max(bmax[i],hi[i]); }
+  });
+  const base=(x,y,z)=>{
+    let f=Infinity;
+    for(let i=0;i<funcs.length;i++){
+      const v=funcs[i](x,y,z), op=parts[i].op||'union';
+      if(i===0 || op==='union') f=(i===0?Math.min(f,v):Math.min(f,v));
+      else if(op==='subtract') f=Math.max(f,-v);
+      else if(op==='intersect') f=Math.max(f,v);
+    }
+    return f;
   };
-  return {field,bmin,bmax};
+  const pattern=spec.pattern||'none';
+  if(pattern==='none') return {field:base,bmin,bmax};
+  const span=Math.max(bmax[0]-bmin[0],bmax[1]-bmin[1],bmax[2]-bmin[2],1);
+  const k=2*Math.PI*(spec.periods||2.5)/span;
+  const pf = pattern==='schwarzp'
+    ? (x,y,z)=>Math.cos(k*x)+Math.cos(k*y)+Math.cos(k*z)
+    : pattern==='diamond'
+      ? (x,y,z)=>Math.sin(k*x)*Math.sin(k*y)*Math.sin(k*z)+Math.sin(k*x)*Math.cos(k*y)*Math.cos(k*z)+Math.cos(k*x)*Math.sin(k*y)*Math.cos(k*z)+Math.cos(k*x)*Math.cos(k*y)*Math.sin(k*z)
+      : (x,y,z)=>Math.sin(k*x)*Math.cos(k*y)+Math.sin(k*y)*Math.cos(k*z)+Math.sin(k*z)*Math.cos(k*x);
+  const t=Math.max(0.15,(spec.thickness||1.5)/Math.max(span,1)*k*span/2);
+  return {field:(x,y,z)=>Math.max(base(x,y,z),Math.abs(pf(x,y,z))-t),bmin,bmax};
 }
-
 // ---- Marching tetrahedra ----
 function addTri(tris,a,b,c,dir){  let ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2];
   let vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
@@ -579,260 +644,179 @@ document.getElementById('dlBtn').addEventListener('click', ()=>{
   downloadExtDataAsTxt(document.getElementById('status'), document.getElementById('dlBtn'), lastTrisPG, lastFilenamePG);
 });
 
-// ================= View 2: G3D AI (natural-language -> spec -> geometry) =================
-function clamp(v,lo,hi){ return Math.min(hi, Math.max(lo, v)); }
+// ================= View 2: G3D AI (natural-language -> arbitrary geometry spec -> real mesh) =================
+function clamp(v,lo,hi){ return Math.min(hi,Math.max(lo,v)); }
 function defaultSpec(){
-  return {
-    primary: { shape:'cube', size:40, diameter:40, height:40, outerDiameter:50, tubeDiameter:14, rounded:true, cornerRadius:5 },
-    secondary: null,
-    pattern:'gyroid', periods:2.5, thickness:1.5, quality:44
-  };
+  return {parts:[{type:'roundedBox',size:[40,40,40],radius:5,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:'union'}],pattern:'none',periods:2.5,thickness:1.5,quality:44};
+}
+const VALID_PARTS=['box','roundedBox','sphere','cylinder','tube','cone','torus','capsule','prism'];
+function num(v,d){return typeof v==='number'&&isFinite(v)?v:d;}
+function normalizePart(p){
+  const q={...p};
+  q.type=VALID_PARTS.includes(q.type)?q.type:'box';
+  q.position=Array.isArray(q.position)?q.position.slice(0,3).map(v=>num(v,0)):[0,0,0];
+  q.rotation=Array.isArray(q.rotation)?q.rotation.slice(0,3).map(v=>num(v,0)*Math.PI/180):[0,0,0];
+  q.scale=Array.isArray(q.scale)?q.scale.slice(0,3).map(v=>clamp(num(v,1),0.05,20)):[1,1,1];
+  q.op=['union','subtract','intersect'].includes(q.op)?q.op:'union';
+  if(q.size) q.size=q.size.slice(0,3).map(v=>clamp(num(v,40),1,500));
+  q.radius=clamp(num(q.radius,20),0.5,250);
+  q.radius2=clamp(num(q.radius2,10),0.5,250);
+  q.height=clamp(num(q.height,40),1,500);
+  q.outerRadius=clamp(num(q.outerRadius,20),0.5,250);
+  q.innerRadius=clamp(num(q.innerRadius,15),0.2,Math.max(0.3,q.outerRadius-0.3));
+  q.majorRadius=clamp(num(q.majorRadius,20),0.5,250);
+  q.minorRadius=clamp(num(q.minorRadius,5),0.2,100);
+  q.length=clamp(num(q.length,40),1,500);
+  q.depth=clamp(num(q.depth,20),0.5,300);
+  if(Array.isArray(q.points)) q.points=q.points.filter(a=>Array.isArray(a)&&a.length>=2).map(a=>[num(a[0],0),num(a[1],0)]).slice(0,64);
+  if(q.type==='prism' && (!q.points || q.points.length<3)) q.points=[[-20,-20],[20,-20],[20,20],[-20,20]];
+  return q;
 }
 function normalizeSpec(spec){
-  const P = spec.primary;
-  P.size = clamp(P.size, 10, 200); P.diameter = clamp(P.diameter, 10, 200); P.height = clamp(P.height, 10, 200);
-  P.outerDiameter = clamp(P.outerDiameter, 15, 200);
-  P.tubeDiameter = clamp(P.tubeDiameter, 4, P.outerDiameter/2 - 2);
-  P.cornerRadius = clamp(P.cornerRadius, 0.5, Math.min(P.size,P.diameter,P.tubeDiameter)/3 || 5);
-  if(spec.secondary){
-    const S = spec.secondary;
-    S.size = clamp(S.size||20, 5, 300); S.diameter = clamp(S.diameter||20, 5, 300); S.height = clamp(S.height||40, 5, 400);
-    S.outerDiameter = clamp(S.outerDiameter||30, 8, 300);
-    S.tubeDiameter = clamp(S.tubeDiameter||8, 3, S.outerDiameter/2 - 2);
-    if(S.op!=='union' && S.op!=='subtract') S.op='subtract';
-  }
-  spec.thickness = clamp(spec.thickness, 0.4, 6);
-  spec.periods = clamp(spec.periods, 1, 8);
-  spec.quality = spec.quality || 44;
-  return spec;
+  const s=spec&&typeof spec==='object'?spec:defaultSpec();
+  s.parts=(Array.isArray(s.parts)?s.parts:[]).slice(0,32).map(normalizePart);
+  if(!s.parts.length) s.parts=[normalizePart(defaultSpec().parts[0])];
+  s.pattern=['none','gyroid','schwarzp','diamond'].includes(s.pattern)?s.pattern:'none';
+  s.periods=clamp(num(s.periods,2.5),0.5,12);
+  s.thickness=clamp(num(s.thickness,1.5),0.2,12);
+  s.quality=clamp(Math.round(num(s.quality,44)),24,72);
+  return s;
 }
-function detectShapeWord(t){
-  if(/\b(sphere|ball)\b/.test(t)) return 'sphere';
-  if(/\b(cylinder|tube)\b/.test(t)) return 'cylinder';
-  if(/\b(ring|torus|donut|doughnut)\b/.test(t)) return 'ring';
-  if(/\b(cube|square|box)\b/.test(t)) return 'cube';
-  return null;
+function mergeAISpec(raw,prev){
+  const base=prev?JSON.parse(JSON.stringify(prev)):defaultSpec();
+  if(!raw||typeof raw!=='object') return base;
+  if(Array.isArray(raw.parts)) base.parts=raw.parts;
+  if(raw.pattern!==undefined) base.pattern=raw.pattern;
+  if(raw.periods!==undefined) base.periods=raw.periods;
+  if(raw.thickness!==undefined) base.thickness=raw.thickness;
+  if(raw.quality!==undefined) base.quality=raw.quality;
+  return normalizeSpec(base);
 }
-function applyShapeAndSize(target, text){
-  const s = detectShapeWord(text);
-  if(s) target.shape = s;
-  const num = text.match(/(\d+(\.\d+)?)\s*mm/);
-  if(num){
-    const v = parseFloat(num[1]);
-    if(target.shape==='cube') target.size=v;
-    else if(target.shape==='sphere') target.diameter=v;
-    else if(target.shape==='cylinder'){ target.diameter=v; target.height=v; }
-    else { target.outerDiameter=v; target.tubeDiameter=Math.max(6, v*0.28); }
-  }
-  return num;
-}
-function parsePrompt(text, prev){
-  const t = ' '+text.toLowerCase()+' ';
-  const spec = prev ? JSON.parse(JSON.stringify(prev)) : defaultSpec();
-  let notes = [];
+function buildAIPrompt(prevSpec,userText){
+  return `You are G3D's geometry planner. Turn the user's natural-language request into a REAL 3D solid construction plan.
 
-  const opMatch = t.match(/^(.*?)\b(with an? (?:hole|opening)|hole (?:through|drilled through)|minus an?|subtract(?:ing)? an?|combined with an?|fused with an?|union(?:ed)? with an?|plus an?)\b(.*)$/);
-  let primaryText = t, secondaryText = null, op = null;
-  if(opMatch){
-    primaryText = opMatch[1];
-    op = /hole|minus|subtract/.test(opMatch[2]) ? 'subtract' : 'union';
-    secondaryText = opMatch[3];
-  }
+Return ONLY valid JSON. Never return markdown, explanations, apologies, or a preset name.
 
-  applyShapeAndSize(spec.primary, primaryText);
-  if(/\b(pyramid|honeycomb lattice shape|custom shape)\b/.test(primaryText))
-    notes.push(`That shape isn't in the geometry engine yet — using ${spec.primary.shape} instead.`);
-
-  if(op){
-    const base = spec.primary.size || spec.primary.diameter || spec.primary.outerDiameter || 40;
-    if(!spec.secondary) spec.secondary = {shape:'cylinder', diameter:base*0.4, height:base*2, outerDiameter:base*0.6, tubeDiameter:base*0.15, size:base*0.5, rounded:false, cornerRadius:0, op};
-    spec.secondary.op = op;
-    const gotNum = applyShapeAndSize(spec.secondary, secondaryText);
-    if(op==='subtract' && spec.secondary.shape==='cylinder' && !gotNum){
-      spec.secondary.diameter = base*0.4;
-      spec.secondary.height = base*2;
-    }
-  } else if(/\bno (hole|combination)\b|remove the (hole|combination)/.test(t)){
-    spec.secondary = null;
-  }
-
-  if(/\bgyroid\b/.test(t)) spec.pattern='gyroid';
-  else if(/schwarz|boxy/.test(t)) spec.pattern='schwarzp';
-  else if(/diamond/.test(t)) spec.pattern='diamond';
-  else if(/honeycomb|hex(agon)?/.test(t)) notes.push(`Honeycomb lattice isn't implemented yet — using ${spec.pattern} instead.`);
-
-  const wallNum = t.match(/(\d+(\.\d+)?)\s*mm\s*(wall|thick)/);
-  if(wallNum) spec.thickness = parseFloat(wallNum[1]);
-  else if(/thick(er)?[\s\w]*(wall|shell|lattice)|make[\s\w]*thicker/.test(t)) spec.thickness = spec.thickness*1.4;
-  else if(/thin(ner)?[\s\w]*(wall|shell|lattice)/.test(t)) spec.thickness = spec.thickness*0.7;
-
-  if(/denser|more waves|finer/.test(t)) spec.periods = spec.periods*1.3;
-  if(/sparse|fewer waves|coarser/.test(t)) spec.periods = spec.periods*0.75;
-
-  if(/no round|sharp corner|square corner/.test(t)) spec.primary.rounded=false;
-  else if(/round(ed)?( corner| edge)?/.test(t)) spec.primary.rounded=true;
-
-  const P = spec.primary;
-  if(!P.size) P.size = 40;
-  return {spec: normalizeSpec(spec), notes};
-}
-
-const SHAPES = ['cube','sphere','cylinder','ring'];
-function isFiniteNum(v){ return typeof v==='number' && isFinite(v); }
-function mergeShapeCfg(raw, base){
-  const out = {...base};
-  if(raw && typeof raw==='object'){
-    if(SHAPES.includes(raw.shape)) out.shape = raw.shape;
-    ['size','diameter','height','outerDiameter','tubeDiameter','cornerRadius'].forEach(k=>{
-      if(isFiniteNum(raw[k])) out[k] = raw[k];
-    });
-    if(typeof raw.rounded==='boolean') out.rounded = raw.rounded;
-  }
-  return out;
-}
-function mergeAISpec(raw, prev){
-  const base = prev ? JSON.parse(JSON.stringify(prev)) : defaultSpec();
-  if(!raw || typeof raw!=='object') return base;
-  const out = {...base};
-  out.primary = mergeShapeCfg(raw.primary, base.primary);
-  if(raw.secondary===null) out.secondary = null;
-  else if(raw.secondary && typeof raw.secondary==='object'){
-    const secBase = base.secondary || {shape:'cylinder', diameter:20, height:80, size:20, outerDiameter:30, tubeDiameter:8, rounded:false, cornerRadius:0, op:'subtract'};
-    const merged = mergeShapeCfg(raw.secondary, secBase);
-    merged.op = (raw.secondary.op==='union'||raw.secondary.op==='subtract') ? raw.secondary.op : (secBase.op||'subtract');
-    out.secondary = merged;
-  }
-  if(patternFns[raw.pattern]) out.pattern = raw.pattern;
-  if(isFiniteNum(raw.periods)) out.periods = raw.periods;
-  if(isFiniteNum(raw.thickness)) out.thickness = raw.thickness;
-  out.quality = base.quality || 44;
-  return normalizeSpec(out);
-}
-function buildAIPrompt(prevSpec, userText){
-  const stateJson = JSON.stringify(prevSpec || defaultSpec());
-  return `You are a geometry-spec generator for a 3D-printing design tool. Convert the user's request into ONLY a JSON object matching this exact schema — no explanation, no markdown fence, just the JSON:
-
+Schema:
 {
-  "primary": {"shape": "cube"|"sphere"|"cylinder"|"ring", "size": number (mm, cube edge), "diameter": number (mm, sphere/cylinder diameter), "height": number (mm, cylinder height), "outerDiameter": number (mm, ring outer diameter), "tubeDiameter": number (mm, ring tube diameter), "rounded": boolean, "cornerRadius": number (mm)},
-  "secondary": null | {"shape": "cube"|"sphere"|"cylinder"|"ring", "size":..., "diameter":..., "height":..., "outerDiameter":..., "tubeDiameter":..., "op": "union"|"subtract"},
-  "pattern": "gyroid"|"schwarzp"|"diamond",
-  "periods": number (1 to 8, infill wave density),
-  "thickness": number (mm, 0.4 to 6, infill shell wall thickness)
+ "parts":[
+  {
+   "type":"box|roundedBox|sphere|cylinder|tube|cone|torus|capsule|prism",
+   "op":"union|subtract|intersect",
+   "position":[x,y,z],
+   "rotation":[xDegrees,yDegrees,zDegrees],
+   "scale":[x,y,z],
+   "size":[x,y,z],
+   "radius":number,
+   "radius2":number,
+   "height":number,
+   "outerRadius":number,
+   "innerRadius":number,
+   "majorRadius":number,
+   "minorRadius":number,
+   "length":number,
+   "depth":number,
+   "points":[[x,y],...]
+  }
+ ],
+ "pattern":"none|gyroid|schwarzp|diamond",
+ "periods":number,
+ "thickness":number,
+ "quality":number
 }
 
-Rules:
-- Only cube, sphere, cylinder, ring are valid shapes in this engine. If the user names something else (pyramid, honeycomb, a custom mesh, a character, an animal, anything not in that list), pick the closest of these four for "primary" — do not invent a new shape value.
-- "secondary" is ONLY for a hole cut through the primary shape (op:"subtract") or a second shape fused to it (op:"union"), both centered on the same origin/axis as the primary. Leave it null unless the user clearly asked for a hole or a combination of two shapes.
-- This is one step in an ongoing conversation. The design's current state is:
-${stateJson}
-- If the user's new message only changes one thing ("make it 50mm instead", "thicker lattice", "add a hole", "remove the hole"), copy every other field from the current state above unchanged and only change what they asked for.
-- If the message describes a whole new design, replace fields as needed but still fill in every required field with a sensible number.
-- Every numeric field must be a plain positive number, no units, no strings.
+GEOMETRY RULES:
+- Parts are actual solids. The geometry engine performs CSG operations in order.
+- First part should normally use op "union". Later parts can be union, subtract, or intersect.
+- Use multiple parts whenever the design has multiple physical features. Do NOT force a design into one primitive.
+- box = rectangular solid. roundedBox = box with rounded edges. sphere = sphere. cylinder = capped cylinder. tube = hollow capped cylinder. cone = tapered solid. torus = ring. capsule = rounded elongated solid along Z. prism = an arbitrary 2D polygon extruded along Z.
+- For custom outlines, use prism with points in millimeters. Do not replace a custom outline with a box.
+- Holes/cutouts must be subtract parts positioned where the user described them.
+- Use rotation and position to place features where requested.
+- Use sensible dimensions in millimeters. Preserve existing dimensions when the user asks for a modification.
+- A request such as "phone stand" must be constructed from multiple solids (base + angled support + lip/cutout), not mapped to a cube.
+- A request such as "keychain shaped like a lightning bolt" should use a prism with a lightning-bolt polygon and a subtract cylinder for the keyring hole.
+- A request such as "three pen holes" should use one base plus three subtract cylinders at different X/Y positions.
+- A request such as "hollow ball" should use a sphere plus a subtract sphere.
+- Do not silently substitute an unrelated primitive. If the requested geometry cannot be represented by the available construction system, use the closest honest construction and keep the design structurally faithful.
+- Do not generate text as fake geometry unless a real text/vector mechanism exists.
+- Pattern is optional. Use "none" unless the user explicitly asks for gyroid, Schwarz P, or diamond.
+- Keep the number of parts <= 24 and polygon points <= 48.
+- All dimensions are millimeters. Rotation is degrees.
 
-User's request: "${userText.replace(/"/g,"'")}"
+CURRENT DESIGN:
+${JSON.stringify(prevSpec||defaultSpec())}
 
-Reply with ONLY the JSON object, nothing else.`;
+USER REQUEST:
+"${userText.replace(/"/g,"'")}"
+
+For a modification request, preserve the current design and change ONLY what the user asked to change.
+For a new request, build the complete design from scratch.
+
+Return ONLY the JSON object.`;
 }
 
-let aiPrevSpec = null;
-let viewerAI = null;
-let lastTrisAI = null, lastFilenameAI = 'g3d_model.stl';
+let aiPrevSpec=null;
+let viewerAI=null;
+let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
 
 function nameFromSpec(spec){
-  const P = spec.primary;
-  const shapeName = {cube:'Cube', sphere:'Sphere', cylinder:'Cylinder', ring:'Ring'}[P.shape] || 'Model';
-  const size = P.shape==='cube'?P.size : P.shape==='ring'?P.outerDiameter : P.diameter;
-  const suffix = spec.secondary ? (spec.secondary.op==='subtract' ? '_Holed' : '_Combo') : '';
-  return `G3D_Squish_${shapeName}${suffix}_${Math.round(size)}mm`;
+  const types=spec.parts.map(p=>p.type);
+  const first=types[0]||'Model';
+  const pretty={box:'Box',roundedBox:'RoundedBox',sphere:'Sphere',cylinder:'Cylinder',tube:'Tube',cone:'Cone',torus:'Torus',capsule:'Capsule',prism:'CustomPrism'};
+  const p=spec.parts[0]||{};
+  const s=p.size?Math.max(...p.size):p.radius?Math.round(p.radius*2):40;
+  return `G3D_Custom_${pretty[first]||'Model'}_${Math.round(s)}mm`;
 }
-
-async function generateAI(){  const btn = document.getElementById('aiGenBtn');
-  const dlBtn = document.getElementById('aiDlBtn');
-  const status = document.getElementById('aiStatus');
-  const promptEl = document.getElementById('aiPrompt');
-  const text = promptEl.value.trim();
-  if(!text){ status.textContent = 'Describe a part first.'; return; }
-  btn.disabled = true; dlBtn.disabled = true;
-  document.getElementById('aiInfoCard').style.display = 'none';
-
-  status.textContent = 'Understanding request...';
-  await new Promise(r=>setTimeout(r,60));
-
-  let spec = null, notes = [];
-  let usedAI = false;
+async function generateAI(){
+  const btn=document.getElementById('aiGenBtn'),dlBtn=document.getElementById('aiDlBtn'),status=document.getElementById('aiStatus'),promptEl=document.getElementById('aiPrompt');
+  const text=promptEl.value.trim();
+  if(!text){status.textContent='Describe the part first.';return;}
+  btn.disabled=true;dlBtn.disabled=true;document.getElementById('aiInfoCard').style.display='none';
+  let spec=null,usedAI=false;
   try{
-    status.textContent = 'Qwen is interpreting your request locally...';
-    const raw = await window.g3dQwenToSpec(aiPrevSpec, text, status);
-    spec = mergeAISpec(raw, aiPrevSpec);
-    usedAI = true;
+    status.textContent='Qwen is planning the custom geometry locally...';
+    const raw=await window.g3dQwenToSpec(aiPrevSpec,text,status);
+    spec=mergeAISpec(raw,aiPrevSpec);usedAI=true;
   }catch(err){
-    console.error('Qwen failed:', err);
-    notes.push('Qwen could not complete the interpretation, so the built-in parser was used.');
+    console.error('Qwen failed:',err);
+    status.textContent='Qwen could not produce a valid geometry plan. No preset substitution was made.';
+    btn.disabled=false;return;
   }
-
-  if(!spec){
-    status.textContent = 'Using the built-in geometry parser...';
-    const r = parsePrompt(text, aiPrevSpec);
-    spec = r.spec;
-    notes = notes.concat(r.notes);
-  }
-
   try{
-    status.textContent = 'Building geometry...';
-    await new Promise(r=>setTimeout(r,80));
-    const {field,bmin,bmax} = buildFieldAndBounds(spec);
-
-    status.textContent = 'Creating mesh...';
-    await new Promise(r=>setTimeout(r,80));
-    const tris = generateMesh(field, spec.quality, bmin, bmax);
-    if(tris.length===0){
-      status.textContent = 'No surface resulted from that spec — try adjusting density or dimensions.';
-      btn.disabled=false; return;
-    }
-
-    status.textContent = 'Preparing preview...';
-    await new Promise(r=>setTimeout(r,60));
-    aiPrevSpec = spec;
-    lastTrisAI = tris;
-    lastFilenameAI = nameFromSpec(spec).replace(/\s+/g,'_') + '.stl';
-
-    if(!viewerAI) viewerAI = createViewer('aiPreviewWrap','aiWireToggle');
-    document.getElementById('aiPreviewCard').style.display='';
-    viewerAI.showMesh(tris);
-
-    const stats = meshStats(tris);
-    const grid = document.getElementById('aiInfoGrid');
-    grid.innerHTML = `
+    status.textContent='Building custom CSG geometry...';
+    await new Promise(r=>setTimeout(r,30));
+    const {field,bmin,bmax}=buildFieldAndBounds(spec);
+    status.textContent='Meshing the custom shape...';
+    await new Promise(r=>setTimeout(r,30));
+    const tris=generateMesh(field,spec.quality,bmin,bmax);
+    if(!tris.length){status.textContent='The requested construction produced no printable surface. Try adjusting dimensions or the description.';btn.disabled=false;return;}
+    aiPrevSpec=spec;lastTrisAI=tris;lastFilenameAI=nameFromSpec(spec).replace(/\s+/g,'_')+'.stl';
+    if(!viewerAI)viewerAI=createViewer('aiPreviewWrap','aiWireToggle');
+    document.getElementById('aiPreviewCard').style.display='';viewerAI.showMesh(tris);
+    const stats=meshStats(tris),grid=document.getElementById('aiInfoGrid');
+    grid.innerHTML=`
       <div><span>AI model</span>Qwen2.5-0.5B-Instruct</div>
+      <div><span>Geometry</span>${spec.parts.length} custom parts / CSG</div>
       <div><span>File name</span>${lastFilenameAI}</div>
       <div><span>Triangles</span>${tris.length.toLocaleString()}</div>
       <div><span>X dimension</span>${stats.x.toFixed(1)} mm</div>
       <div><span>Y dimension</span>${stats.y.toFixed(1)} mm</div>
       <div><span>Z dimension</span>${stats.z.toFixed(1)} mm</div>
-      <div><span>Approx. volume</span>${(stats.volume/1000).toFixed(2)} cm³</div>
-    `;
+      <div><span>Approx. volume</span>${(stats.volume/1000).toFixed(2)} cm³</div>`;
     document.getElementById('aiInfoCard').style.display='';
-
-    let msg = (usedAI ? 'Qwen interpreted the request locally. ' : '') + `Generated ${tris.length.toLocaleString()} triangles.`;
-    if(notes.length) msg += '\n' + notes.join(' ');
-    status.textContent = msg;
-    dlBtn.disabled = false;
-  } catch(err){
-    status.textContent = 'Error: ' + err.message;
-  }
-  btn.disabled = false;
+    status.textContent=(usedAI?'Qwen created a custom geometry plan. ':'')+`Generated ${tris.length.toLocaleString()} triangles from ${spec.parts.length} real geometric parts.`;
+    dlBtn.disabled=false;
+  }catch(err){status.textContent='Geometry error: '+err.message;}
+  btn.disabled=false;
 }
-document.getElementById('aiGenBtn').addEventListener('click', generateAI);
-document.getElementById('aiNewBtn').addEventListener('click', ()=>{
-  aiPrevSpec = null;
-  document.getElementById('aiPrompt').value = '';
-  document.getElementById('aiStatus').textContent = 'Started a new design — previous parameters cleared.';
+document.getElementById('aiGenBtn').addEventListener('click',generateAI);
+document.getElementById('aiNewBtn').addEventListener('click',()=>{
+  aiPrevSpec=null;document.getElementById('aiPrompt').value='';
+  document.getElementById('aiStatus').textContent='Started a new custom design — previous geometry cleared.';
   document.getElementById('aiInfoCard').style.display='none';
 });
-document.getElementById('aiDlBtn').addEventListener('click', ()=>{
-  downloadExtDataAsTxt(document.getElementById('aiStatus'), document.getElementById('aiDlBtn'), lastTrisAI, lastFilenameAI);
-});
-
+document.getElementById('aiDlBtn').addEventListener('click',()=>downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiDlBtn'),lastTrisAI,lastFilenameAI));
 // ================= Tab / swipe navigation =================
 const track = document.getElementById('track');
 const tabPG = document.getElementById('tabPG');
