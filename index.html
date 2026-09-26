@@ -76,11 +76,11 @@ button:disabled{opacity:.5;cursor:default;}
 .infoGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:.85rem;}
 .infoGrid div span{display:block;color:var(--sub);font-size:.72rem;}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>\n<script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.02</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.03</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <aside class="chatDrawer" id="chatDrawer"><div class="chatHead"><strong>G3D AI Chats</strong><button class="chatClose" id="chatClose">×</button></div><button class="newChat" id="newChatBtn">+ New chat</button><div class="chatList" id="chatList"></div></aside>
 <div class="tabs">
@@ -165,13 +165,13 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.02</span></h1>
+  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.03</span></h1>
   <p class="sub">Internal design tool. Describe any 3D object in plain language. Qwen creates a multi-part geometry plan, then G3D builds the actual custom mesh locally. No API key, nothing leaves this page.</p>
 
   <div class="card">
     <p class="sectitle">Chat</p><div class="chatMessages" id="chatMessages"></div><p class="sectitle">Describe the part</p>
     <textarea id="aiPrompt" placeholder="Describe anything you want to build... e.g. &quot;Make a phone stand with a 15° back, a front lip, and a cable slot.&quot;"></textarea>
-    <p class="hint" style="margin-top:8px;margin-bottom:0;">Qwen runs locally in your browser and plans the geometry. The model loads only when you generate your first AI design. Custom parts are built by G3D's procedural CSG engine.</p>
+    <p class="hint" style="margin-top:8px;margin-bottom:0;">Qwen runs locally in your browser and plans the geometry. Mesh generation yields to the browser so the interface stays responsive. The model loads only when you generate your first AI design. Custom parts are built by G3D's procedural CSG engine.</p>
   </div>
 
   <button id="aiGenBtn">GENERATE STL</button>
@@ -380,7 +380,7 @@ function processTet(pts,vals,tris){
 }
 const tetIdx=[[0,5,1,6],[0,1,2,6],[0,2,3,6],[0,3,7,6],[0,7,4,6],[0,4,5,6]];
 const cubeOff=[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
-function generateMesh(fieldFn, res, bmin, bmax){
+async function generateMesh(fieldFn, res, bmin, bmax){
   const N = res+1;
   const dx=(bmax[0]-bmin[0])/res, dy=(bmax[1]-bmin[1])/res, dz=(bmax[2]-bmin[2])/res;
   const vals = new Float32Array(N*N*N);
@@ -393,11 +393,13 @@ function generateMesh(fieldFn, res, bmin, bmax){
         vals[(i*N+j)*N+k]=fieldFn(x,y,z);
       }
     }
+    if((i&3)===3) await new Promise(requestAnimationFrame);
   }
   function idx(i,j,k){return (i*N+j)*N+k;}
   function pt(i,j,k){return [bmin[0]+i*dx, bmin[1]+j*dy, bmin[2]+k*dz];}
   const tris=[];
-  for(let i=0;i<res;i++)for(let j=0;j<res;j++)for(let k=0;k<res;k++){
+  for(let i=0;i<res;i++){
+    for(let j=0;j<res;j++)for(let k=0;k<res;k++){
     const cp=[],cv=[];
     for(let c=0;c<8;c++){
       const oi=i+cubeOff[c][0], oj=j+cubeOff[c][1], ok=k+cubeOff[c][2];
@@ -407,6 +409,8 @@ function generateMesh(fieldFn, res, bmin, bmax){
     for(let t=0;t<6;t++){
       const ti=tetIdx[t];
       processTet([cp[ti[0]],cp[ti[1]],cp[ti[2]],cp[ti[3]]],[cv[ti[0]],cv[ti[1]],cv[ti[2]],cv[ti[3]]],tris);
+    }
+    if((i&1)===1) await new Promise(requestAnimationFrame);
     }
   }
   return tris;
@@ -642,7 +646,7 @@ async function generatePG(){
     const {field,bmin,bmax} = buildFieldAndBounds(spec);
     status.textContent = 'Meshing (this can take a few seconds)...';
     await new Promise(r=>setTimeout(r,30));
-    const tris = generateMesh(field, res, bmin, bmax);
+    const tris = await generateMesh(field, res, bmin, bmax);
     if(tris.length===0){
       status.textContent = 'No surface found — try increasing wave density or checking dimensions.';
       btn.disabled=false; return;
@@ -669,7 +673,7 @@ document.getElementById('dlBtn').addEventListener('click', ()=>{
 // ================= View 2: G3D AI (natural-language -> arbitrary geometry spec -> real mesh) =================
 function clamp(v,lo,hi){ return Math.min(hi,Math.max(lo,v)); }
 function defaultSpec(){
-  return {parts:[{type:'roundedBox',size:[40,40,40],radius:5,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:'union'}],pattern:'none',periods:2.5,thickness:1.5,quality:32};
+  return {parts:[{type:'roundedBox',size:[40,40,40],radius:5,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:'union'}],pattern:'none',periods:2.5,thickness:1.5,quality:28};
 }
 const VALID_PARTS=['box','roundedBox','sphere','cylinder','tube','cone','torus','capsule','prism'];
 function num(v,d){return typeof v==='number'&&isFinite(v)?v:d;}
@@ -781,6 +785,17 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
+const meshCache=new Map();
+function cachedMeshKey(fieldFn,res,bmin,bmax){return null;}
+async function getMesh(fieldFn,res,bmin,bmax,key){
+  if(key && meshCache.has(key)) return meshCache.get(key);
+  const tris=await generateMesh(fieldFn,res,bmin,bmax);
+  if(key){
+    meshCache.set(key,tris);
+    if(meshCache.size>6) meshCache.delete(meshCache.keys().next().value);
+  }
+  return tris;
+}
 
 const CHAT_KEY='g3d_ai_chats_v1';
 let chats=[],activeChatId=null;
@@ -843,7 +858,7 @@ async function generateAI(){
     const {field,bmin,bmax}=buildFieldAndBounds(spec);
     status.textContent='Meshing the custom shape...';
     await new Promise(r=>setTimeout(r,30));
-    const tris=generateMesh(field,spec.quality,bmin,bmax);
+    const cacheKey=JSON.stringify(spec); const tris=await getMesh(field,spec.quality,bmin,bmax,cacheKey);
     if(!tris.length){status.textContent='The requested construction produced no printable surface. Try adjusting dimensions or the description.';btn.disabled=false;return;}
     aiPrevSpec=spec;lastTrisAI=tris;lastFilenameAI=nameFromSpec(spec).replace(/\s+/g,'_')+'.stl';const x=getChat();if(x){x.spec=spec;x.messages.push({role:'assistant',text:'Generated '+spec.parts.length+' custom parts: '+lastFilenameAI,time:Date.now()});x.updated=Date.now();saveChats();renderChats();renderChat();}
     if(!viewerAI)viewerAI=createViewer('aiPreviewWrap','aiWireToggle');
