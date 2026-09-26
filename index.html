@@ -175,11 +175,11 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.41</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.42</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.41</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.42</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -306,7 +306,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.41</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.42</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -933,11 +933,7 @@ function goTo(i){
   tabAI.classList.toggle('active', i===1);
 }
 tabPG.addEventListener('click', ()=>goTo(0));
-function (){if(window.g3dQwenPreload)window.g3dQwenPreload(document.getElementById('aiStatus'));}
-tabAI.addEventListener('click', ()=>{goTo(1);();});
-tabAI.addEventListener('pointerenter',,{passive:true});
-tabAI.addEventListener('focus',);
-tabAI.addEventListener('touchstart',,{passive:true});
+tabAI.addEventListener('click', ()=>goTo(1));
 
 const viewport = document.getElementById('viewport');
 let dragStartX=null, dragStartY=null, dragging=false, dragDX=0, lockedAxis=null;
