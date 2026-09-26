@@ -121,29 +121,53 @@ function setG3DModel(id){
 async function isModelRequest(text,prevSpec){
   const s=String(text||"").toLowerCase().trim();
   if(/\b(make|create|build|design|generate|model|mesh|stl|3d print|print this|prototype|part|shape|geometry|hollow|lattice|gyroid|phone stand|keychain)\b/i.test(s))return true;
-  return !!prevSpec && /\b(this|that|it|model|design)\b/i.test(s) && /\b(change|modify|edit|add|remove|move|rotate|resize|make it|turn it|taller|shorter|wider|narrower|thicker|thinner|bigger|smaller)\b/i.test(s);
+  return !!prevSpec &&
+    /\b(this|that|it|model|design)\b/i.test(s) &&
+    /\b(change|modify|edit|add|remove|move|rotate|resize|make it|turn it|taller|shorter|wider|narrower|thicker|thinner|bigger|smaller)\b/i.test(s);
 }
 async function qwenToSpec(prevSpec,userText,status,history){
   const shouldBuild=isModelRequest(userText,prevSpec);
-  if(!shouldBuild){
-    if(status&&!shouldBuild)status.textContent=modelInfo().name+" is thinking…";
-  } else {
+  if(shouldBuild){
     const fast=fastPrimitiveSpec(userText,prevSpec);
-  if(fast){
-    if(status)status.textContent="Building exact primitive locally…";
-    return fast;
+    if(fast){
+      if(status)status.textContent="Building the model…";
+      return {mode:"model",reply:"Got it — I’ll build that.",spec:fast};
+    }
   }
-  const ck=cacheKey(prevSpec,userText),cached=cacheGet(ck);
-  if(cached){
-    if(status)status.textContent="Reusing cached design…";
-    return cached;
+  const cacheKeyValue=shouldBuild
+    ? cacheKey(prevSpec,userText)
+    : "chat:"+String(userText||"").trim().toLowerCase()+":"+JSON.stringify((history||[]).slice(-4));
+  if(shouldBuild){
+    const cached=cacheGet(cacheKeyValue);
+    if(cached)return cached;
   }
   const id=++seq;
-  if(status)status.textContent=modelInfo().name+" is interpreting your request…";
+  if(status)status.textContent=modelInfo().name+" is thinking…";
   return new Promise((resolve,reject)=>{
-    pending.set(id,{resolve:(spec)=>{cachePut(ck,spec);resolve(spec);},reject});
-    try{ensureWorker().postMessage({type:"generate",id,modelId:selectedModelId,prevSpec:prevSpec||null,userText:String(userText||""),history:Array.isArray(history)?history.slice(-7):[]});}
-    catch(e){pending.delete(id);reject(e);}
+    pending.set(id,{
+      resolve:(response)=>{
+        const out=response&&typeof response==="object"
+          ?response
+          :{mode:"chat",reply:String(response||"")};
+        if(out.mode==="model"&&out.spec)cachePut(cacheKeyValue,out);
+        resolve(out);
+      },
+      reject
+    });
+    try{
+      ensureWorker().postMessage({
+        type:"respond",
+        id,
+        modelId:selectedModelId,
+        prevSpec:prevSpec||null,
+        userText:String(userText||""),
+        history:Array.isArray(history)?history.slice(-7):[],
+        wantsModel:shouldBuild
+      });
+    }catch(e){
+      pending.delete(id);
+      reject(e);
+    }
   });
 }
 window.g3dQwenToSpec=qwenToSpec;
