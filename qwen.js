@@ -82,7 +82,7 @@ async function qwenToSpec(prevSpec, userText, status) {
     { role:"system", content:system },
     { role:"user", content:userText }
   ], {
-    max_new_tokens:280,
+    max_new_tokens:180,
     do_sample:false,
     return_full_text:false
   });

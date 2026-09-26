@@ -80,7 +80,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.01</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.02</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <aside class="chatDrawer" id="chatDrawer"><div class="chatHead"><strong>G3D AI Chats</strong><button class="chatClose" id="chatClose">×</button></div><button class="newChat" id="newChatBtn">+ New chat</button><div class="chatList" id="chatList"></div></aside>
 <div class="tabs">
@@ -165,7 +165,7 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.01</span></h1>
+  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.02</span></h1>
   <p class="sub">Internal design tool. Describe any 3D object in plain language. Qwen creates a multi-part geometry plan, then G3D builds the actual custom mesh locally. No API key, nothing leaves this page.</p>
 
   <div class="card">
@@ -638,7 +638,7 @@ async function generatePG(){
       rounded: roundedEl ? roundedEl.checked : false,
       cornerRadius: roundedEl ? val('cornerRadius') : 0
     };
-    const res = parseInt(document.getElementById('quality').value,10);
+    const res = Math.min(36,parseInt(document.getElementById('quality').value,10));
     const {field,bmin,bmax} = buildFieldAndBounds(spec);
     status.textContent = 'Meshing (this can take a few seconds)...';
     await new Promise(r=>setTimeout(r,30));
@@ -701,7 +701,7 @@ function normalizeSpec(spec){
   s.pattern=['none','gyroid','schwarzp','diamond'].includes(s.pattern)?s.pattern:'none';
   s.periods=clamp(num(s.periods,2.5),0.5,12);
   s.thickness=clamp(num(s.thickness,1.5),0.2,12);
-  s.quality=clamp(Math.round(num(s.quality,32)),24,48);
+  s.quality=clamp(Math.round(num(s.quality,32)),24,36);
   return s;
 }
 function mergeAISpec(raw,prev){
