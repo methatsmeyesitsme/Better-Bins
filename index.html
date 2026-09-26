@@ -80,7 +80,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.03</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.04</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <aside class="chatDrawer" id="chatDrawer"><div class="chatHead"><strong>G3D AI Chats</strong><button class="chatClose" id="chatClose">×</button></div><button class="newChat" id="newChatBtn">+ New chat</button><div class="chatList" id="chatList"></div></aside>
 <div class="tabs">
@@ -165,7 +165,7 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.03</span></h1>
+  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.04</span></h1>
   <p class="sub">Internal design tool. Describe any 3D object in plain language. Qwen creates a multi-part geometry plan, then G3D builds the actual custom mesh locally. No API key, nothing leaves this page.</p>
 
   <div class="card">
@@ -416,31 +416,34 @@ async function generateMesh(fieldFn, res, bmin, bmax){
   return tris;
 }
 function trisToSTL(tris){
-  const buf = new ArrayBuffer(84+50*tris.length);
-  const dv = new DataView(buf);
-  dv.setUint32(80, tris.length, true);
-  let off=84;
-  for(const t of tris){
-    dv.setFloat32(off,t.n[0],true); dv.setFloat32(off+4,t.n[1],true); dv.setFloat32(off+8,t.n[2],true); off+=12;
-    for(const v of [t.a,t.b,t.c]){
-      dv.setFloat32(off,v[0],true); dv.setFloat32(off+4,v[1],true); dv.setFloat32(off+8,v[2],true); off+=12;
+  const count=tris instanceof Float32Array?Math.floor(tris.length/12):tris.length;
+  const buf=new ArrayBuffer(84+50*count),dv=new DataView(buf);dv.setUint32(80,count,true);let off=84;
+  if(tris instanceof Float32Array){
+    for(let i=0;i<count;i++){const s=i*12;
+      dv.setFloat32(off,tris[s],true);dv.setFloat32(off+4,tris[s+1],true);dv.setFloat32(off+8,tris[s+2],true);off+=12;
+      for(let j=3;j<12;j+=3){dv.setFloat32(off,tris[s+j],true);dv.setFloat32(off+4,tris[s+j+1],true);dv.setFloat32(off+8,tris[s+j+2],true);off+=12;}
+      dv.setUint16(off,0,true);off+=2;
     }
-    dv.setUint16(off,0,true); off+=2;
+    return new Uint8Array(buf);
+  }
+  for(const t of tris){dv.setFloat32(off,t.n[0],true);dv.setFloat32(off+4,t.n[1],true);dv.setFloat32(off+8,t.n[2],true);off+=12;
+    for(const v of [t.a,t.b,t.c]){dv.setFloat32(off,v[0],true);dv.setFloat32(off+4,v[1],true);dv.setFloat32(off+8,v[2],true);off+=12;}
+    dv.setUint16(off,0,true);off+=2;
   }
   return new Uint8Array(buf);
 }
 function meshStats(tris){
   let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity,vol=0;
-  for(const t of tris){
-    for(const v of [t.a,t.b,t.c]){
-      if(v[0]<minX)minX=v[0]; if(v[0]>maxX)maxX=v[0];
-      if(v[1]<minY)minY=v[1]; if(v[1]>maxY)maxY=v[1];
-      if(v[2]<minZ)minZ=v[2]; if(v[2]>maxZ)maxZ=v[2];
+  if(tris instanceof Float32Array){
+    for(let i=0;i<tris.length;i+=12){const a=tris[i+3],b=tris[i+6],cc=tris[i+9],ay=tris[i+4],by=tris[i+7],cy=tris[i+10],az=tris[i+5],bz=tris[i+8],cz=tris[i+11];
+      minX=Math.min(minX,a,b,cc);maxX=Math.max(maxX,a,b,cc);minY=Math.min(minY,ay,by,cy);maxY=Math.max(maxY,ay,by,cy);minZ=Math.min(minZ,az,bz,cz);maxZ=Math.max(maxZ,az,bz,cz);
+      vol+=(a*(by*cz-bz*cy)-ay*(b*cz-bz*cc)+az*(b*cy-by*cc))/6;
     }
-    const a=t.a,b=t.b,c=t.c;
-    vol += (a[0]*(b[1]*c[2]-b[2]*c[1]) - a[1]*(b[0]*c[2]-b[2]*c[0]) + a[2]*(b[0]*c[1]-b[1]*c[0]))/6;
+  }else for(const t of tris){
+    for(const v of [t.a,t.b,t.c]){if(v[0]<minX)minX=v[0];if(v[0]>maxX)maxX=v[0];if(v[1]<minY)minY=v[1];if(v[1]>maxY)maxY=v[1];if(v[2]<minZ)minZ=v[2];if(v[2]>maxZ)maxZ=v[2];}
+    const a=t.a,b=t.b,cc=t.c;vol+=(a[0]*(b[1]*cc[2]-b[2]*cc[1])-a[1]*(b[0]*cc[2]-b[2]*cc[0])+a[2]*(b[0]*cc[1]-b[1]*cc[0]))/6;
   }
-  return {x:maxX-minX, y:maxY-minY, z:maxZ-minZ, volume:Math.abs(vol)};
+  return {x:maxX-minX,y:maxY-minY,z:maxZ-minZ,volume:Math.abs(vol)};
 }
 function downloadExtDataAsTxt(status, dlBtn, tris, filename, cb){
   (async ()=>{
@@ -472,7 +475,7 @@ function createViewer(wrapId, wireToggleId){
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
   const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
   wrapEl.appendChild(renderer.domElement);
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
   const d1 = new THREE.DirectionalLight(0xffffff, 0.8); d1.position.set(1,1,1); scene.add(d1);
@@ -536,8 +539,16 @@ function createViewer(wrapId, wireToggleId){
       v.meshObj.geometry.dispose(); v.meshObj.material.dispose();
       v.meshObj.children.forEach(c=>{ c.geometry.dispose(); c.material.dispose(); });
     }
-    const positions = new Float32Array(tris.length*9);
-    tris.forEach((t,i)=>{
+    const triCount = tris instanceof Float32Array ? Math.floor(tris.length/12) : tris.length;
+    const positions = new Float32Array(triCount*9);
+    if(tris instanceof Float32Array){
+      for(let i=0;i<triCount;i++){
+        const s=i*12,o=i*9;
+        positions[o]=tris[s+3]; positions[o+1]=tris[s+4]; positions[o+2]=tris[s+5];
+        positions[o+3]=tris[s+6]; positions[o+4]=tris[s+7]; positions[o+5]=tris[s+8];
+        positions[o+6]=tris[s+9]; positions[o+7]=tris[s+10]; positions[o+8]=tris[s+11];
+      }
+    }else tris.forEach((t,i)=>{
       const o=i*9;
       positions[o]=t.a[0]; positions[o+1]=t.a[1]; positions[o+2]=t.a[2];
       positions[o+3]=t.b[0]; positions[o+4]=t.b[1]; positions[o+5]=t.b[2];
@@ -552,7 +563,7 @@ function createViewer(wrapId, wireToggleId){
     const wireGeo = new THREE.WireframeGeometry(geo);
     const wireMat = new THREE.LineBasicMaterial({color:0x2a1608, transparent:true, opacity:0.35});
     const wireLines = new THREE.LineSegments(wireGeo, wireMat);
-    wireLines.visible = document.getElementById(wireToggleId).checked;
+    wireLines.visible = document.getElementById(wireToggleId).checked && triCount < 25000;
     meshObj.userData.wire = wireLines;
     meshObj.add(wireLines);
     scene.add(meshObj);
@@ -786,15 +797,34 @@ let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
 const meshCache=new Map();
-function cachedMeshKey(fieldFn,res,bmin,bmax){return null;}
-async function getMesh(fieldFn,res,bmin,bmax,key){
+const meshWorker=new Worker('./mesh-worker.js');
+let meshRequestId=0;
+const meshWaiters=new Map();
+meshWorker.addEventListener('message',e=>{
+  const m=e.data||{};
+  if(m.type==='progress'){
+    const statusEl=document.getElementById('aiStatus');
+    if(statusEl) statusEl.textContent='Building custom mesh… '+m.value+'%';
+    return;
+  }
+  const waiter=meshWaiters.get(m.id);
+  if(!waiter) return;
+  meshWaiters.delete(m.id);
+  if(m.type==='result') waiter.resolve(m.data);
+  else waiter.reject(new Error(m.message||'Mesh worker failed.'));
+});
+async function getMeshFromWorker(spec,res,key){
   if(key && meshCache.has(key)) return meshCache.get(key);
-  const tris=await generateMesh(fieldFn,res,bmin,bmax);
+  const id=++meshRequestId;
+  const data=await new Promise((resolve,reject)=>{
+    meshWaiters.set(id,{resolve,reject});
+    meshWorker.postMessage({type:'mesh',id,spec,res});
+  });
   if(key){
-    meshCache.set(key,tris);
+    meshCache.set(key,data);
     if(meshCache.size>6) meshCache.delete(meshCache.keys().next().value);
   }
-  return tris;
+  return data;
 }
 
 const CHAT_KEY='g3d_ai_chats_v1';
@@ -853,12 +883,8 @@ async function generateAI(){
     btn.disabled=false;return;
   }
   try{
-    status.textContent='Building custom CSG geometry...';
-    await new Promise(r=>setTimeout(r,30));
-    const {field,bmin,bmax}=buildFieldAndBounds(spec);
-    status.textContent='Meshing the custom shape...';
-    await new Promise(r=>setTimeout(r,30));
-    const cacheKey=JSON.stringify(spec); const tris=await getMesh(field,spec.quality,bmin,bmax,cacheKey);
+    status.textContent='Building custom CSG geometry in background...';
+    const cacheKey=JSON.stringify(spec); const tris=await getMeshFromWorker(spec,spec.quality,cacheKey);
     if(!tris.length){status.textContent='The requested construction produced no printable surface. Try adjusting dimensions or the description.';btn.disabled=false;return;}
     aiPrevSpec=spec;lastTrisAI=tris;lastFilenameAI=nameFromSpec(spec).replace(/\s+/g,'_')+'.stl';const x=getChat();if(x){x.spec=spec;x.messages.push({role:'assistant',text:'Generated '+spec.parts.length+' custom parts: '+lastFilenameAI,time:Date.now()});x.updated=Date.now();saveChats();renderChats();renderChat();}
     if(!viewerAI)viewerAI=createViewer('aiPreviewWrap','aiWireToggle');
@@ -874,7 +900,8 @@ async function generateAI(){
       <div><span>Z dimension</span>${stats.z.toFixed(1)} mm</div>
       <div><span>Approx. volume</span>${(stats.volume/1000).toFixed(2)} cm³</div>`;
     document.getElementById('aiInfoCard').style.display='';
-    status.textContent=(usedAI?'Qwen created a custom geometry plan. ':'')+`Generated ${tris.length.toLocaleString()} triangles from ${spec.parts.length} real geometric parts.`;
+    const triCount=tris instanceof Float32Array?Math.floor(tris.length/12):tris.length;
+    status.textContent=(usedAI?'Qwen created a custom geometry plan. ':'')+`Generated ${triCount.toLocaleString()} triangles from ${spec.parts.length} real geometric parts.`;
     dlBtn.disabled=false;
   }catch(err){status.textContent='Geometry error: '+err.message;}
   btn.disabled=false;
