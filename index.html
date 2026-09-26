@@ -99,7 +99,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.12</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.13</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
@@ -547,12 +547,15 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.12.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.13.js');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
   if(m.type==='progress'){const el=document.getElementById(m.mode==='pattern'?'status':'aiStatus');if(el)el.textContent=(m.mode==='pattern'?'Building geometry… ':'Building custom mesh… ')+m.value+'%';return;}
-  const w=meshWaiters.get(m.id);if(!w)return;meshWaiters.delete(m.id);if(m.type==='result')w.resolve(m.data);else w.reject(new Error(m.message||'Mesh worker failed.'));
+  if(m.type==='start')return;
+  const w=meshWaiters.get(m.id);if(!w)return;
+  if(m.type==='result'){meshWaiters.delete(m.id);w.resolve(m.data);return;}
+  if(m.type==='error'){meshWaiters.delete(m.id);w.reject(new Error(m.message||'Mesh worker failed.'));return;}
 });
 async function getMeshFromWorker(spec,res,key,mode){
   const cacheKey=key?mode+':'+key:null;if(cacheKey&&meshCache.has(cacheKey))return meshCache.get(cacheKey);
