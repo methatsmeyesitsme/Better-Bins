@@ -19,7 +19,7 @@ function outputText(result){
   return typeof generated==="string"?generated:"";
 }
 function parseJSON(text){
-  const cleaned=String(text).replace(/```json/gi,"").replace(/```/g,"").replace(/<think>[sS]*?</think>/gi,"").trim();
+  const cleaned=String(text).replace(/```json/gi,"").replace(/```/g,"").replace(/<think>[\s\S]*?<\/think>/gi,"").trim();
   const start=cleaned.indexOf("{");if(start<0)throw new Error("Qwen returned no JSON object.");
   let depth=0,quote=false,escaped=false;
   for(let i=start;i<cleaned.length;i++){
