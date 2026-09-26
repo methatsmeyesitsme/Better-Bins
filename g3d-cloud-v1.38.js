@@ -45,8 +45,9 @@
       'pattern is none|gyroid|schwarzp|diamond; periods, thickness, quality are numbers.',
       "Use multiple solids for real features, subtract for holes/cutouts, and prism for custom outlines.",
       "Preserve the current design when modifying it. Do not replace custom designs with unrelated primitives.",
-      "All dimensions are millimeters. Maximum 24 parts and 48 polygon points. Be concise."
+      "All dimensions are millimeters. Maximum 24 parts and 48 polygon points. Be concise.",
       "Current design: "+JSON.stringify(prevSpec||null),
+      "Recent conversation: "+JSON.stringify(historyMessages(history)),
     ].join("\n");
   }
   function chatSystem(history){
@@ -55,6 +56,7 @@
       "You are not required to make 3D models. Talk naturally unless the user explicitly asks to create or modify one.",
       "Answer directly and concisely. Use the supplied conversation for context.",
       "Do not output geometry JSON in normal chat.",
+      "Recent conversation: "+JSON.stringify(historyMessages(history)),
     ].join("\n");
   }
   function parseModelJSON(text){
