@@ -1,5 +1,5 @@
 const MODEL="onnx-community/Qwen2.5-0.5B-Instruct";
-const WORKER_URL="./g3d-model-worker-v1.26.js";
+const WORKER_URL="./g3d-model-worker-v1.34.js";
 let worker=null,seq=0;
 const pending=new Map();
 const MODEL_PREF_KEY="g3d_ai_model_v1";
@@ -118,7 +118,7 @@ function setG3DModel(id){
   modelLoadStart(id);
   preloadQwen(document.getElementById("aiStatus"));
 }
-async function qwenToSpec(prevSpec,userText,status){
+async function qwenToSpec(prevSpec,userText,status,history){
   const fast=fastPrimitiveSpec(userText,prevSpec);
   if(fast){
     if(status)status.textContent="Building exact primitive locally…";
@@ -133,7 +133,7 @@ async function qwenToSpec(prevSpec,userText,status){
   if(status)status.textContent=modelInfo().name+" is interpreting your request…";
   return new Promise((resolve,reject)=>{
     pending.set(id,{resolve:(spec)=>{cachePut(ck,spec);resolve(spec);},reject});
-    try{ensureWorker().postMessage({type:"generate",id,modelId:selectedModelId,prevSpec:prevSpec||null,userText:String(userText||"")});}
+    try{ensureWorker().postMessage({type:"generate",id,modelId:selectedModelId,prevSpec:prevSpec||null,userText:String(userText||""),history:Array.isArray(history)?history.slice(-7):[]});}
     catch(e){pending.delete(id);reject(e);}
   });
 }

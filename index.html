@@ -170,11 +170,11 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.33</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.34</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.33</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.34</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -301,7 +301,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.33</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.34</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -798,12 +798,14 @@ function renderChat(){
 function renderLastResultCard(){
   const x=getChat(),box=document.getElementById('chatMessages');if(!x||!box)return;
   const last=x.messages[x.messages.length-1];if(!last||!last.result)return;
-  const r=last.result;
+  const r=last.result,available=!!(lastTrisAI&&lastFilenameAI===r.filename);
   const card=document.createElement('div');card.className='g3dResultCard';
-  card.innerHTML='<div class="g3dResultHead">3D MODEL READY</div><div class="g3dResultName">'+esc(r.filename)+'</div><div class="g3dResultMeta">'+Number(r.triangles||0).toLocaleString()+' triangles</div><div class="g3dResultActions"><button type="button" class="btn-secondary" data-result-action="preview">Open 3D preview</button><button type="button" class="btn-secondary" data-result-action="download">Download STL</button></div>';
+  card.innerHTML='<div class="g3dResultHead">3D MODEL READY</div><div class="g3dResultName">'+esc(r.filename)+'</div><div class="g3dResultMeta">'+Number(r.triangles||0).toLocaleString()+' triangles</div><div class="g3dResultActions"><button type="button" class="btn-secondary" data-result-action="preview" '+(available?'':'disabled')+'>'+(available?'Open 3D preview':'Preview unavailable')+'</button><button type="button" class="btn-secondary" data-result-action="download" '+(available?'':'disabled')+'>'+(available?'Download STL':'Generate again to download')+'</button></div>';
   const wrap=document.createElement('div');wrap.className='chatMsgWrap assistant';wrap.appendChild(card);box.appendChild(wrap);
-  card.querySelector('[data-result-action="preview"]').onclick=()=>document.getElementById('aiPreviewCard').scrollIntoView({behavior:'smooth',block:'center'});
-  card.querySelector('[data-result-action="download"]').onclick=()=>downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiSendBtn'),lastTrisAI,r.filename);
+  if(available){
+    card.querySelector('[data-result-action="preview"]').onclick=()=>document.getElementById('aiPreviewCard').scrollIntoView({behavior:'smooth',block:'center'});
+    card.querySelector('[data-result-action="download"]').onclick=()=>downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiSendBtn'),lastTrisAI,r.filename);
+  }
 }
 
 function addMessage(role,text){
@@ -831,20 +833,22 @@ async function generateAI(){
   const text=promptEl.value.trim();
   if(!text){status.textContent='Tell me what you want to build.';return;}
   btn.disabled=true;document.getElementById('aiInfoCard').style.display='none';addMessage('user',text);
+  const active=getChat(),history=active&&Array.isArray(active.messages)?active.messages.slice(-7):[];
   try{
-    status.textContent='Qwen is planning the custom geometry locally...';
-    const raw=await window.g3dQwenToSpec(aiPrevSpec,text,status),spec=mergeAISpec(raw,aiPrevSpec);
-    status.textContent='Building custom geometry in background...';
+    status.textContent='Thinking about your design…';
+    const raw=await window.g3dQwenToSpec(aiPrevSpec,text,status,history),spec=mergeAISpec(raw,aiPrevSpec);
+    status.textContent='Building the model…';
     const key=JSON.stringify(spec),tris=await getMeshFromWorker(spec,spec.quality,key,'ai');
-    if(!tris.length){status.textContent='The requested construction produced no printable surface. Try adjusting dimensions or the description.';btn.disabled=false;return;}
+    if(!tris.length){status.textContent='I could not build a printable surface from that request. Try adjusting the dimensions or description.';return;}
     aiPrevSpec=spec;lastTrisAI=tris;lastFilenameAI=nameFromSpec(spec).replace(/\s+/g,'_')+'.stl';
     const triCount=Math.floor(tris.length/12),stl=trisToSTL(tris);
     if(!viewerAI)viewerAI=await createViewer('aiPreviewWrap','aiWireToggle');
     document.getElementById('aiPreviewCard').style.display='';viewerAI.showMesh(tris);
     const saved=await saveArtifact('G3D AI',lastFilenameAI,stl,triCount);
-    const partLabel=spec.parts.length===1?'part':'parts';
-    const reply='Done — I built '+spec.parts.length+' real geometric '+partLabel+'. We can keep refining this same design in the chat.';
-    const x=getChat();if(x){
+    const fallbackReply='Done — I built '+spec.parts.length+' real geometric '+(spec.parts.length===1?'part':'parts')+'. We can keep refining it right here in the chat.';
+    const reply=raw&&typeof raw.a==='string'&&raw.a.trim()?raw.a.trim():fallbackReply;
+    const x=getChat();
+    if(x){
       x.spec=spec;
       x.messages.push({role:'assistant',text:reply,time:Date.now(),result:{filename:lastFilenameAI,triangles:triCount,dimensions:meshStats(tris)}});
       x.updated=Date.now();saveChats();renderChats();renderChat();
@@ -852,20 +856,15 @@ async function generateAI(){
     const stats=meshStats(tris),grid=document.getElementById('aiInfoGrid'),modelInfo=window.g3dGetModelInfo?window.g3dGetModelInfo():{name:'Local model'};
     grid.innerHTML='<div><span>AI model</span>'+modelInfo.name+'</div><div><span>Geometry</span>'+spec.parts.length+' custom parts / CSG</div><div><span>File name</span>'+lastFilenameAI+'</div><div><span>Triangles</span>'+triCount.toLocaleString()+'</div><div><span>X dimension</span>'+stats.x.toFixed(1)+' mm</div><div><span>Y dimension</span>'+stats.y.toFixed(1)+' mm</div><div><span>Z dimension</span>'+stats.z.toFixed(1)+' mm</div><div><span>Approx. volume</span>'+(stats.volume/1000).toFixed(2)+' cm³</div>';
     document.getElementById('aiInfoCard').style.display='';
-    const saved=await saveArtifact('G3D AI',lastFilenameAI,stl,triCount);
-    status.textContent='Generated '+triCount.toLocaleString()+' triangles from '+spec.parts.length+' real geometric parts.'+(saved?' Saved to Artifacts.':' Sign in to save it to Artifacts.');
-    dlBtn.disabled=false;
+    status.textContent='Model ready.'+(saved?' Saved to Artifacts.':' Sign in to save it to Artifacts.');
   }catch(err){console.error(err);status.textContent='Error: '+(err.message||err);}
-  btn.disabled=false;
+  finally{btn.disabled=false;promptEl.value='';promptEl.style.height='auto';}
 }
 const aiComposerForm=document.getElementById('aiComposerForm'),aiPromptEl=document.getElementById('aiPrompt'),aiSendBtn=document.getElementById('aiSendBtn');
 aiComposerForm.addEventListener('submit',e=>{e.preventDefault();generateAI();});
-aiPromptEl.addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiComposerForm.requestSubmit();}
-});
+aiPromptEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiComposerForm.requestSubmit();}});
 aiPromptEl.addEventListener('input',()=>{aiPromptEl.style.height='auto';aiPromptEl.style.height=Math.min(aiPromptEl.scrollHeight,150)+'px';});
 document.getElementById('aiNewBtn').addEventListener('click',function(){newChat();aiPromptEl.focus();});
-
 
 // ================= Account UI + persistence gating =================
 const authModal=document.getElementById('authModal'),authOpenBtn=document.getElementById('authOpenBtn'),authSignOutBtn=document.getElementById('authSignOutBtn');
