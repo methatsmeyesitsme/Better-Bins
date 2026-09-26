@@ -1,7 +1,21 @@
 const MODEL="onnx-community/Qwen2.5-0.5B-Instruct";
-const WORKER_URL="./qwen-worker-v1.21.js";
+const WORKER_URL="./g3d-model-worker-v1.24.js";
 let worker=null,seq=0;
 const pending=new Map();
+const MODEL_PREF_KEY="g3d_ai_model_v1";
+const MODEL_CONFIGS={
+  ai1:{id:"onnx-community/SmolLM2-360M-ONNX",name:"SmolLM2 360M",label:"AI 1 · SmolLM2 360M"},
+  ai2:{id:"onnx-community/gemma-3-270m-it-ONNX",name:"Gemma 3 270M IT",label:"AI 2 · Gemma 3 270M"}
+};
+let selectedModelId="ai1";
+try{if(localStorage.getItem(MODEL_PREF_KEY)==="ai2")selectedModelId="ai2";}catch(e){}
+function modelInfo(){return MODEL_CONFIGS[selectedModelId];}
+function notifyModelChange(){try{window.dispatchEvent(new CustomEvent("g3d-model-change",{detail:modelInfo()}));}catch(e){}}
+function rejectPending(message){
+  const err=new Error(message);
+  for(const [id,p] of pending){pending.delete(id);p.reject(err);}
+}
+
 const specCache=new Map();
 const SPEC_CACHE_MAX=16;
 function cacheKey(prevSpec,text){return JSON.stringify([prevSpec||null,String(text||"").trim().toLowerCase()]);}
@@ -75,8 +89,17 @@ function ensureWorker(){
 }
 function preloadQwen(status){
   const w=ensureWorker();
-  if(status)status.textContent="Loading Qwen in the background…";
-  try{w.postMessage({type:"preload"});}catch(e){if(status)status.textContent="Qwen could not start: "+(e?.message||e);}
+  if(status)status.textContent="Loading "+modelInfo().name+" in the background…";
+  try{w.postMessage({type:"preload",modelId:selectedModelId});}catch(e){if(status)status.textContent="Model could not start: "+(e?.message||e);}
+}
+function setG3DModel(id){
+  if(!MODEL_CONFIGS[id]||id===selectedModelId)return;
+  rejectPending("Model changed.");
+  if(worker){worker.terminate();worker=null;}
+  selectedModelId=id;
+  try{localStorage.setItem(MODEL_PREF_KEY,id);}catch(e){}
+  notifyModelChange();
+  preloadQwen(document.getElementById("aiStatus"));
 }
 async function qwenToSpec(prevSpec,userText,status){
   const fast=fastPrimitiveSpec(userText,prevSpec);
@@ -90,7 +113,7 @@ async function qwenToSpec(prevSpec,userText,status){
     return cached;
   }
   const id=++seq;
-  if(status)status.textContent="Qwen is interpreting your request…";
+  if(status)status.textContent=modelInfo().name+" is interpreting your request…";
   return new Promise((resolve,reject)=>{
     pending.set(id,{resolve:(spec)=>{cachePut(ck,spec);resolve(spec);},reject});
     try{ensureWorker().postMessage({type:"generate",id,prevSpec:prevSpec||null,userText:String(userText||"")});}
@@ -99,4 +122,6 @@ async function qwenToSpec(prevSpec,userText,status){
 }
 window.g3dQwenToSpec=qwenToSpec;
 window.g3dQwenPreload=preloadQwen;
-window.g3dQwenModel=MODEL;
+window.g3dSetModel=setG3DModel;
+window.g3dGetModelInfo=modelInfo;
+window.g3dQwenModels=MODEL_CONFIGS;

@@ -89,7 +89,10 @@ button{
 }
 button:disabled{opacity:.5;cursor:default;}
 .btn-secondary{background:var(--field);color:var(--text);border:1px solid var(--line);}
-.status{margin-top:12px;font-size:.83rem;color:var(--sub);white-space:pre-line;min-height:1.2em;}
+.status{margin-top:12px;font-size:.83rem;color:var(--sub);white-space:pre-line;min-height:1.2em;}.modelSwitch{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:0 0 8px;}
+.modelChoice{padding:10px 8px;background:var(--field);color:var(--text);border:1px solid var(--line);border-radius:10px;font-size:.78rem;line-height:1.2;}
+.modelChoice.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+.modelChoice small{display:block;font-size:.68rem;opacity:.78;margin-top:3px;}
 .hint{font-size:.76rem;color:var(--sub);margin-top:-6px;margin-bottom:12px;}
 .sectitle{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--sub);margin:0 0 10px;}
 .infoGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:.85rem;}
@@ -102,11 +105,11 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.23</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.24</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.08</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.24</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Artifacts</p>
       <p class="hint" style="margin:0 0 10px;">STL files from G3D AI and Pattern Generator are stored separately from chats.</p>
@@ -197,13 +200,19 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.08</span></h1>
-  <p class="sub">Internal design tool. Describe any 3D object in plain language. Qwen plans the geometry locally, then G3D builds the actual custom mesh. The model starts loading in the background when you open G3D AI.</p>
+  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.24</span></h1>
+  <p class="sub">Internal design tool. Describe any 3D object in plain language. The selected local model plans the geometry, then G3D builds the actual custom mesh. Simple geometry bypasses the model for instant results.</p>
 
   <div class="card">
+    <p class="sectitle">AI model</p>
+    <div class="modelSwitch">
+      <button id="modelAI1" class="modelChoice active" type="button">AI 1<small>SmolLM2 360M</small></button>
+      <button id="modelAI2" class="modelChoice" type="button">AI 2<small>Gemma 3 270M</small></button>
+    </div>
+    <p class="hint" id="modelHint" style="margin:0 0 12px;">Choose the local model used for custom designs.</p>
     <p class="sectitle">Chat</p><div class="chatMessages" id="chatMessages"></div><p class="sectitle">Describe the part</p>
     <textarea id="aiPrompt" placeholder="Describe anything you want to build... e.g. &quot;Make a phone stand with a 15° back, a front lip, and a cable slot.&quot;"></textarea>
-    <p class="hint" style="margin-top:8px;margin-bottom:0;">Qwen runs locally in your browser and plans the geometry. Mesh generation yields to the browser so the interface stays responsive. The model loads only when you generate your first AI design. Custom parts are built by G3D's procedural CSG engine.</p>
+    <p class="hint" style="margin-top:8px;margin-bottom:0;">The selected model runs locally in your browser. Complex designs use the model; simple primitives are generated directly. Custom parts are built by G3D's procedural CSG engine.</p>
   </div>
 
   <button id="aiGenBtn">GENERATE STL</button>
@@ -437,6 +446,21 @@ document.getElementById('dlBtn').addEventListener('click', ()=>{
   downloadExtDataAsTxt(document.getElementById('status'), document.getElementById('dlBtn'), lastTrisPG, lastFilenamePG);
 });
 
+
+// ================= AI model switch =================
+const modelAI1=document.getElementById('modelAI1'),modelAI2=document.getElementById('modelAI2'),modelHint=document.getElementById('modelHint');
+function refreshAIModelUI(){
+  const info=window.g3dGetModelInfo?window.g3dGetModelInfo():{name:"SmolLM2 360M",label:"AI 1 · SmolLM2 360M"};
+  const ai2=info.label&&info.label.indexOf("AI 2")===0;
+  modelAI1.classList.toggle('active',!ai2);modelAI2.classList.toggle('active',ai2);
+  modelHint.textContent=info.name+" selected. Simple shapes use the instant geometry path.";
+  const st=document.getElementById('aiStatus');if(st&&!st.textContent)st.textContent=info.name+" ready when needed.";
+}
+modelAI1.addEventListener('click',()=>window.g3dSetModel&&window.g3dSetModel('ai1'));
+modelAI2.addEventListener('click',()=>window.g3dSetModel&&window.g3dSetModel('ai2'));
+window.addEventListener('g3d-model-change',refreshAIModelUI);
+refreshAIModelUI();
+
 // ================= View 2: G3D AI (natural-language -> arbitrary geometry spec -> real mesh) =================
 function clamp(v,lo,hi){ return Math.min(hi,Math.max(lo,v)); }
 function defaultSpec(){
@@ -631,8 +655,8 @@ async function generateAI(){
     if(!viewerAI)viewerAI=await createViewer('aiPreviewWrap','aiWireToggle');
     document.getElementById('aiPreviewCard').style.display='';viewerAI.showMesh(tris);
     const triCount=Math.floor(tris.length/12),stl=trisToSTL(tris);saveArtifact('G3D AI',lastFilenameAI,stl,triCount).catch(console.error);
-    const stats=meshStats(tris),grid=document.getElementById('aiInfoGrid');
-    grid.innerHTML='<div><span>AI model</span>Qwen2.5-0.5B-Instruct</div><div><span>Geometry</span>'+spec.parts.length+' custom parts / CSG</div><div><span>File name</span>'+lastFilenameAI+'</div><div><span>Triangles</span>'+triCount.toLocaleString()+'</div><div><span>X dimension</span>'+stats.x.toFixed(1)+' mm</div><div><span>Y dimension</span>'+stats.y.toFixed(1)+' mm</div><div><span>Z dimension</span>'+stats.z.toFixed(1)+' mm</div><div><span>Approx. volume</span>'+(stats.volume/1000).toFixed(2)+' cm³</div>';
+    const stats=meshStats(tris),grid=document.getElementById('aiInfoGrid'),modelInfo=window.g3dGetModelInfo?window.g3dGetModelInfo():{name:'Local model'};
+    grid.innerHTML='<div><span>AI model</span>'+modelInfo.name+'</div><div><span>Geometry</span>'+spec.parts.length+' custom parts / CSG</div><div><span>File name</span>'+lastFilenameAI+'</div><div><span>Triangles</span>'+triCount.toLocaleString()+'</div><div><span>X dimension</span>'+stats.x.toFixed(1)+' mm</div><div><span>Y dimension</span>'+stats.y.toFixed(1)+' mm</div><div><span>Z dimension</span>'+stats.z.toFixed(1)+' mm</div><div><span>Approx. volume</span>'+(stats.volume/1000).toFixed(2)+' cm³</div>';
     document.getElementById('aiInfoCard').style.display='';status.textContent='Generated '+triCount.toLocaleString()+' triangles from '+spec.parts.length+' real geometric parts. Saved to Artifacts.';dlBtn.disabled=false;
   }catch(err){console.error(err);status.textContent='Error: '+(err.message||err);}
   btn.disabled=false;
