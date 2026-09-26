@@ -89,7 +89,11 @@ button{
 }
 button:disabled{opacity:.5;cursor:default;}
 .btn-secondary{background:var(--field);color:var(--text);border:1px solid var(--line);}
-.status{margin-top:12px;font-size:.83rem;color:var(--sub);white-space:pre-line;min-height:1.2em;}.modelSwitch{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:0 0 8px;}
+.status{margin-top:12px;font-size:.83rem;color:var(--sub);white-space:pre-line;min-height:1.2em;}.modelSwitch{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:0 0 8px;}
+.modelTimer{border:1px solid var(--line);background:var(--field);border-radius:10px;padding:9px 10px;margin:0 0 10px;font-size:.74rem;color:var(--sub);}
+.modelTimer>div:first-child{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.modelTimer strong{font-size:.86rem;color:var(--text);font-variant-numeric:tabular-nums;}
+.modelTimes{margin-top:5px;font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .modelChoice{padding:10px 8px;background:var(--field);color:var(--text);border:1px solid var(--line);border-radius:10px;font-size:.78rem;line-height:1.2;}
 .modelChoice.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
 .modelChoice small{display:block;font-size:.68rem;opacity:.78;margin-top:3px;}
@@ -105,11 +109,11 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.24</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.25</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.24</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.25</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Artifacts</p>
       <p class="hint" style="margin:0 0 10px;">STL files from G3D AI and Pattern Generator are stored separately from chats.</p>
@@ -200,14 +204,19 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.24</span></h1>
+  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.25</span></h1>
   <p class="sub">Internal design tool. Describe any 3D object in plain language. The selected local model plans the geometry, then G3D builds the actual custom mesh. Simple geometry bypasses the model for instant results.</p>
 
   <div class="card">
     <p class="sectitle">AI model</p>
     <div class="modelSwitch">
       <button id="modelAI1" class="modelChoice active" type="button">AI 1<small>SmolLM2 360M</small></button>
-      <button id="modelAI2" class="modelChoice" type="button">AI 2<small>Gemma 3 270M</small></button>
+      <button id="modelAI2" class="modelChoice" type="button">AI 2<small>Gemma 3 270M IT</small></button>
+      <button id="modelAI3" class="modelChoice" type="button">AI 3<small>Qwen2.5 0.5B</small></button>
+    </div>
+    <div class="modelTimer" aria-live="polite">
+      <div><span>Load stopwatch</span><strong id="modelLoadTimer">Not timed yet</strong></div>
+      <div class="modelTimes" id="modelTimes">AI 1 — &nbsp; · &nbsp; AI 2 — &nbsp; · &nbsp; AI 3 —</div>
     </div>
     <p class="hint" id="modelHint" style="margin:0 0 12px;">Choose the local model used for custom designs.</p>
     <p class="sectitle">Chat</p><div class="chatMessages" id="chatMessages"></div><p class="sectitle">Describe the part</p>
@@ -448,18 +457,50 @@ document.getElementById('dlBtn').addEventListener('click', ()=>{
 
 
 // ================= AI model switch =================
-const modelAI1=document.getElementById('modelAI1'),modelAI2=document.getElementById('modelAI2'),modelHint=document.getElementById('modelHint');
+const modelAI1=document.getElementById('modelAI1'),modelAI2=document.getElementById('modelAI2'),modelAI3=document.getElementById('modelAI3');
+const modelHint=document.getElementById('modelHint'),modelLoadTimer=document.getElementById('modelLoadTimer'),modelTimesEl=document.getElementById('modelTimes');
+let stopwatchStart=0,stopwatchRunning=false,stopwatchRAF=0;
+const modelTimes=JSON.parse(localStorage.getItem('g3d_model_load_times_v1')||'{}');
+
+function formatLoadTime(ms){return Number.isFinite(ms)&&ms>0?(ms/1000).toFixed(2)+' s':'—';}
+function renderModelTimes(){
+  modelTimesEl.textContent='AI 1 '+formatLoadTime(modelTimes.ai1)+'  ·  AI 2 '+formatLoadTime(modelTimes.ai2)+'  ·  AI 3 '+formatLoadTime(modelTimes.ai3);
+}
+function updateStopwatch(){
+  if(!stopwatchRunning)return;
+  modelLoadTimer.textContent=formatLoadTime(performance.now()-stopwatchStart);
+  stopwatchRAF=requestAnimationFrame(updateStopwatch);
+}
+function startModelStopwatch(info){
+  stopwatchStart=performance.now();stopwatchRunning=true;cancelAnimationFrame(stopwatchRAF);
+  modelLoadTimer.textContent='0.00 s';
+  modelHint.textContent=info.name+' loading…';
+  stopwatchRAF=requestAnimationFrame(updateStopwatch);
+}
+function stopModelStopwatch(info,elapsed){
+  stopwatchRunning=false;cancelAnimationFrame(stopwatchRAF);
+  const ms=Number(elapsed)>0?Number(elapsed):performance.now()-stopwatchStart;
+  modelTimes[info.id]=ms;
+  try{localStorage.setItem('g3d_model_load_times_v1',JSON.stringify(modelTimes));}catch(e){}
+  modelLoadTimer.textContent=formatLoadTime(ms);
+  modelHint.textContent=info.name+' loaded in '+formatLoadTime(ms)+'.';
+  renderModelTimes();
+}
 function refreshAIModelUI(){
-  const info=window.g3dGetModelInfo?window.g3dGetModelInfo():{name:"SmolLM2 360M",label:"AI 1 · SmolLM2 360M"};
-  const ai2=info.label&&info.label.indexOf("AI 2")===0;
-  modelAI1.classList.toggle('active',!ai2);modelAI2.classList.toggle('active',ai2);
-  modelHint.textContent=info.name+" selected. Simple shapes use the instant geometry path.";
-  const st=document.getElementById('aiStatus');if(st&&!st.textContent)st.textContent=info.name+" ready when needed.";
+  const info=window.g3dGetModelInfo?window.g3dGetModelInfo():{id:'ai1',name:'SmolLM2 360M',label:'AI 1 · SmolLM2 360M'};
+  const id=info.id||((info.label||'').indexOf('AI 2')===0?'ai2':(info.label||'').indexOf('AI 3')===0?'ai3':'ai1');
+  modelAI1.classList.toggle('active',id==='ai1');modelAI2.classList.toggle('active',id==='ai2');modelAI3.classList.toggle('active',id==='ai3');
+  modelHint.textContent=info.name+' selected. Simple shapes use the instant geometry path.';
+  renderModelTimes();
 }
 modelAI1.addEventListener('click',()=>window.g3dSetModel&&window.g3dSetModel('ai1'));
 modelAI2.addEventListener('click',()=>window.g3dSetModel&&window.g3dSetModel('ai2'));
+modelAI3.addEventListener('click',()=>window.g3dSetModel&&window.g3dSetModel('ai3'));
+window.addEventListener('g3d-model-loading',e=>startModelStopwatch(e.detail||{name:'Model',id:'ai1'}));
+window.addEventListener('g3d-model-ready',e=>stopModelStopwatch(e.detail||{name:'Model',id:'ai1'},e.detail&&e.detail.elapsed));
 window.addEventListener('g3d-model-change',refreshAIModelUI);
 refreshAIModelUI();
+renderModelTimes();
 
 // ================= View 2: G3D AI (natural-language -> arbitrary geometry spec -> real mesh) =================
 function clamp(v,lo,hi){ return Math.min(hi,Math.max(lo,v)); }

@@ -5,10 +5,21 @@ const pending=new Map();
 const MODEL_PREF_KEY="g3d_ai_model_v1";
 const MODEL_CONFIGS={
   ai1:{id:"onnx-community/SmolLM2-360M-ONNX",name:"SmolLM2 360M",label:"AI 1 · SmolLM2 360M"},
-  ai2:{id:"onnx-community/gemma-3-270m-it-ONNX",name:"Gemma 3 270M IT",label:"AI 2 · Gemma 3 270M"}
+  ai2:{id:"onnx-community/gemma-3-270m-it-ONNX",name:"Gemma 3 270M IT",label:"AI 2 · Gemma 3 270M IT"},
+  ai3:{id:"onnx-community/Qwen2.5-0.5B-Instruct",name:"Qwen2.5 0.5B",label:"AI 3 · Qwen2.5 0.5B"}
 };
 let selectedModelId="ai1";
-try{if(localStorage.getItem(MODEL_PREF_KEY)==="ai2")selectedModelId="ai2";}catch(e){}
+try{
+  const saved=localStorage.getItem(MODEL_PREF_KEY);
+  if(MODEL_CONFIGS[saved])selectedModelId=saved;
+}catch(e){}
+
+function modelLoadStart(id){
+  try{window.dispatchEvent(new CustomEvent("g3d-model-loading",{detail:{id,name:MODEL_CONFIGS[id]?.name||id}}));}catch(e){}
+}
+function modelLoadReady(id,elapsed){
+  try{window.dispatchEvent(new CustomEvent("g3d-model-ready",{detail:{id,name:MODEL_CONFIGS[id]?.name||id,elapsed}}));}catch(e){}
+}
 function modelInfo(){return MODEL_CONFIGS[selectedModelId];}
 function notifyModelChange(){try{window.dispatchEvent(new CustomEvent("g3d-model-change",{detail:modelInfo()}));}catch(e){}}
 function rejectPending(message){
@@ -73,7 +84,11 @@ function ensureWorker(){
   worker.addEventListener("message",e=>{
     const m=e.data||{};
     if(m.type==="status"){const s=document.getElementById("aiStatus");if(s)s.textContent=m.text||"";return;}
-    if(m.type==="ready"){const s=document.getElementById("aiStatus");if(s)s.textContent="Qwen is ready.";return;}
+    if(m.type==="ready"){
+  const s=document.getElementById("aiStatus");if(s)s.textContent=modelInfo().name+" is ready.";
+  modelLoadReady(m.modelId||selectedModelId,Number(m.elapsed)||0);
+  return;
+}
     const p=pending.get(m.id);
     if(!p)return;
     pending.delete(m.id);
@@ -99,6 +114,7 @@ function setG3DModel(id){
   selectedModelId=id;
   try{localStorage.setItem(MODEL_PREF_KEY,id);}catch(e){}
   notifyModelChange();
+  modelLoadStart(id);
   preloadQwen(document.getElementById("aiStatus"));
 }
 async function qwenToSpec(prevSpec,userText,status){
@@ -116,7 +132,7 @@ async function qwenToSpec(prevSpec,userText,status){
   if(status)status.textContent=modelInfo().name+" is interpreting your request…";
   return new Promise((resolve,reject)=>{
     pending.set(id,{resolve:(spec)=>{cachePut(ck,spec);resolve(spec);},reject});
-    try{ensureWorker().postMessage({type:"generate",id,prevSpec:prevSpec||null,userText:String(userText||"")});}
+    try{ensureWorker().postMessage({type:"generate",id,modelId:selectedModelId,prevSpec:prevSpec||null,userText:String(userText||"")});}
     catch(e){pending.delete(id);reject(e);}
   });
 }
