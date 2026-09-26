@@ -95,34 +95,34 @@
     });
   }
   async function readSSE(res,onDelta,signal){
-    if(!res.body)return '';
-    const reader=res.body.getReader(),decoder=new TextDecoder(),parts=[];let buffer='';
-    while(true){
-      if(signal&&signal.aborted)throw new DOMException('Aborted','AbortError');
-      const {value,done}=await reader.read();
-      if(done)break;
-      buffer+=decoder.decode(value,{stream:true});
-      const lines=buffer.split(/\\r?\\n/);buffer=lines.pop()||'';
-      for(const line of lines){
-        const raw=line.trim();
-        if(!raw||raw.startsWith(':'))continue;
-        const dataLine=raw.startsWith('data:')?raw.slice(5).trim():raw;
-        if(!dataLine||dataLine==='[DONE]')continue;
-        try{
-          const data=JSON.parse(dataLine);
-          let delta='';
-          if(data.candidates&&data.candidates[0]&&data.candidates[0].content&&Array.isArray(data.candidates[0].content.parts))
-            delta=data.candidates[0].content.parts.map(x=>x.text||'').join('');
-          else if(data.choices&&data.choices[0]&&data.choices[0].delta)
-            delta=String(data.choices[0].delta.content||'');
-          else if(data.type==='content_block_delta'&&data.delta)delta=String(data.delta.text||'');
-          if(delta){parts.push(delta);if(onDelta)onDelta(delta);}
-        }catch(e){}
-      }
-    }
-    return parts.join('');
+  if(!res.body)return '';
+  const reader=res.body.getReader(),decoder=new TextDecoder(),parts=[];let buffer='';
+  const processLine=(line)=>{
+    const raw=line.trim();
+    if(!raw||raw.startsWith(':'))return;
+    const dataLine=raw.startsWith('data:')?raw.slice(5).trim():raw;
+    if(!dataLine||dataLine==='[DONE]')return;
+    try{
+      const data=JSON.parse(dataLine);let delta='';
+      if(data.candidates&&data.candidates[0]&&data.candidates[0].content&&Array.isArray(data.candidates[0].content.parts)){
+        delta=data.candidates[0].content.parts.filter(function(p){return p&&!p.thought;}).map(function(p){return p.text||'';}).join('');
+      }else if(data.choices&&data.choices[0]&&data.choices[0].delta){delta=String(data.choices[0].delta.content||'');}
+      else if(data.type==='content_block_delta'&&data.delta){delta=String(data.delta.text||'');}
+      else if(data.event_type==='step.delta'&&data.delta&&data.delta.type==='text'){delta=String(data.delta.text||'');}
+      if(delta){parts.push(delta);if(onDelta)onDelta(delta);}
+    }catch(e){}
+  };
+  while(true){
+    if(signal&&signal.aborted)throw new DOMException('Aborted','AbortError');
+    const result=await reader.read();if(result.done)break;
+    buffer+=decoder.decode(result.value,{stream:false});
+    const lines=buffer.split(/\r?\n/);buffer=lines.pop()||'';
+    for(const line of lines)processLine(line);
   }
-  async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stream=false,onDelta}={}){
+  buffer+=decoder.decode();if(buffer.trim())processLine(buffer);
+  return parts.join('');
+}
+async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stream=false,onDelta}={}){
     const endpoint=stream?'streamGenerateContent?alt=sse':'generateContent';
     const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':'+endpoint;
     const generationConfig={maxOutputTokens:maxTokens};
@@ -142,6 +142,7 @@
         role:m.role==='assistant'?'model':'user',parts:[{text:String(m.content||'')}]
       }));
       let result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta});
+      if(result.res.ok&&!result.text.trim())result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:false,onDelta:null});
       if(!result.res.ok && result.res.status===503){
         await sleep(250,signal);
         result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta});
@@ -180,12 +181,12 @@
     const build=wantsModel(userText,prevSpec);
     if(status)status.textContent=p.label+' is thinking…';
     if(build){
-      const raw=await callProvider(p,vault.key,modelSystem(prevSpec,history),history,userText,500,{signal,onDelta:null});
+      const raw=await callProvider(p,vault.key,modelSystem(prevSpec,history),history,userText,420,{signal,onDelta:null});
       const parsed=parseModelJSON(raw);
       if(parsed.mode!=='model')throw new Error('The provider did not return a valid model response.');
       return {mode:'model',reply:String(parsed.reply||'I’ll build that.'),spec:parsed.spec||parsed};
     }
-    const raw=await callProvider(p,vault.key,chatSystem(history),history,userText,220,{signal,onDelta});
+    const raw=await callProvider(p,vault.key,chatSystem(history),history,userText,180,{signal,onDelta});
     return {mode:'chat',reply:raw.trim()};
   }
   window.g3dCloud={respond,info,providerConfig:PROVIDERS};
