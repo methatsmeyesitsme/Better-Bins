@@ -199,14 +199,20 @@ async function generateMesh(fieldFn,res,bmin,bmax,id){
   }
   return new Float32Array(tris);
 }
+function legacyPatternToSpec(p){
+  let part;
+  if(p.shape==='sphere')part={type:'sphere',radius:(p.diameter||50)/2,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:'union'};
+  else if(p.shape==='cylinder')part={type:'cylinder',radius:(p.diameter||50)/2,height:p.height||50,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:'union'};
+  else if(p.shape==='ring'){const minor=(p.tubeDiameter||16)/2,major=Math.max(minor+0.5,(p.outerDiameter||60)/2-minor);part={type:'torus',majorRadius:major,minorRadius:minor,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:'union'};}
+  else{const size=p.size||50;part=p.rounded?{type:'roundedBox',size:[size,size,size],radius:Math.min(p.cornerRadius||5,size/2),position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:'union'}:{type:'box',size:[size,size,size],position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:'union'};}
+  return{parts:[part],pattern:p.pattern||'gyroid',periods:Number(p.periods)||2.5,thickness:Number(p.thickness)||1.5};
+}
 self.onmessage=async(e)=>{
-  const m=e.data||{};
-  if(m.type!=="mesh") return;
+  const m=e.data||{};if(m.type!=="mesh")return;
   try{
-    self.postMessage({type:"start",id:m.id});
-    const data=await generateMesh(m.spec,Math.max(18,Math.min(28,Math.round(m.res||26))),m.id);
-    self.postMessage({type:"result",id:m.id,data},[data.buffer]);
-  }catch(err){
-    self.postMessage({type:"error",id:m.id,message:err?.message||String(err)});
-  }
+    const spec=m.mode==="pattern"?legacyPatternToSpec(m.spec):m.spec;
+    self.postMessage({type:"start",id:m.id,mode:m.mode});
+    const data=await generateMesh(spec,Math.max(18,Math.min(28,Math.round(m.res||26))),m.id);
+    self.postMessage({type:"result",id:m.id,mode:m.mode,data},[data.buffer]);
+  }catch(err){self.postMessage({type:"error",id:m.id,mode:m.mode,message:err?.message||String(err)});}
 };

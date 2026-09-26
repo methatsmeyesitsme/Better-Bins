@@ -33,9 +33,28 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,s
 .chatClose{width:36px;height:36px;padding:0;background:var(--field);color:var(--text);border:1px solid var(--line);}
 .newChat{margin:12px 16px;width:auto;}
 .chatList{overflow:auto;padding:0 10px 16px;flex:1;}
-.chatItem{display:flex;align-items:center;width:100%;padding:11px 10px;margin:3px 0;background:transparent;color:var(--text);border:1px solid transparent;border-radius:10px;text-align:left;font-size:.86rem;}
+.chatItem{display:flex;align-items:center;width:100%;padding:3px;margin:3px 0;background:transparent;color:var(--text);border:1px solid transparent;border-radius:10px;font-size:.86rem;}
 .chatItem.active{background:var(--field);border-color:var(--line);}
-.chatItem span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chatOpen{flex:1;min-width:0;width:auto;padding:8px 7px;background:transparent;color:var(--text);border:0;text-align:left;font-weight:500;}
+.chatOpen span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chatDelete{flex:0 0 auto;width:30px;height:30px;padding:0;border-radius:8px;background:transparent;color:var(--sub);border:1px solid transparent;font-size:16px;}
+.chatDelete:hover{background:var(--field);border-color:var(--line);color:var(--text);}
+.settingsBtn{margin:0 16px 12px;width:auto;}
+.settingsPanel{position:fixed;inset:0;background:var(--bg);z-index:40;display:none;overflow:auto;}
+.settingsPanel.open{display:block;}
+.settingsInner{max-width:760px;margin:0 auto;padding:18px 20px 60px;}
+.settingsTop{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+.settingsClose{width:40px;height:40px;padding:0;background:var(--panel);color:var(--text);border:1px solid var(--line);}
+.settingsCard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;}
+.artifactItem{display:flex;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);}
+.artifactItem:last-child{border-bottom:0;}
+.artifactMain{min-width:0;flex:1;}
+.artifactName{font-size:.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.artifactMeta{margin-top:3px;font-size:.72rem;color:var(--sub);}
+.artifactActions{display:flex;gap:6px;flex:0 0 auto;}
+.artifactActions button{width:auto;padding:8px 10px;font-size:.76rem;}
+.artifactEmpty{color:var(--sub);font-size:.84rem;padding:8px 0;}
+
 .chatEmpty{padding:18px 8px;color:var(--sub);font-size:.82rem;}
 .drawerShade{position:fixed;inset:0;background:rgba(0,0,0,.22);z-index:25;display:none;}
 .drawerShade.show{display:block;}
@@ -80,9 +99,19 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.04</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.05</span></div>
 <div class="drawerShade" id="drawerShade"></div>
-<aside class="chatDrawer" id="chatDrawer"><div class="chatHead"><strong>G3D AI Chats</strong><button class="chatClose" id="chatClose">×</button></div><button class="newChat" id="newChatBtn">+ New chat</button><div class="chatList" id="chatList"></div></aside>
+<section class="settingsPanel" id="settingsPanel" aria-hidden="true">
+  <div class="settingsInner">
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.05</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsCard">
+      <p class="sectitle">Artifacts</p>
+      <p class="hint" style="margin:0 0 10px;">STL files from G3D AI and Pattern Generator are stored separately from chats.</p>
+      <div id="artifactList"></div>
+    </div>
+  </div>
+</section>
+<aside class="chatDrawer" id="chatDrawer"><div class="chatHead"><strong>G3D AI Chats</strong><button class="chatClose" id="chatClose">×</button></div><button class="newChat" id="newChatBtn">+ New chat</button><button class="settingsBtn btn-secondary" id="settingsBtn">Settings</button><div class="chatList" id="chatList"></div></aside>
 <div class="tabs">
   <div class="tab active" id="tabPG">Pattern Generator</div>
   <div class="tab" id="tabAI">G3D AI</div>
@@ -165,7 +194,7 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.04</span></h1>
+  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.05</span></h1>
   <p class="sub">Internal design tool. Describe any 3D object in plain language. Qwen creates a multi-part geometry plan, then G3D builds the actual custom mesh locally. No API key, nothing leaves this page.</p>
 
   <div class="card">
@@ -198,250 +227,26 @@ button:disabled{opacity:.5;cursor:default;}
 </div>
 
 <script>
-// ================= Shared geometry engine =================
-function roundedBox(x,y,z,hx,hy,hz,r){
-  const qx=Math.abs(x)-hx, qy=Math.abs(y)-hy, qz=Math.abs(z)-hz;
-  const ax=Math.max(qx,0), ay=Math.max(qy,0), az=Math.max(qz,0);
-  const outside=Math.hypot(ax,ay,az);
-  const inside=Math.min(Math.max(qx,Math.max(qy,qz)),0);
-  return outside+inside-r;
-}
-function sphereSDF(x,y,z,R){ return Math.hypot(x,y,z)-R; }
-function cappedCylinderSDF(x,y,z,R,halfH){
-  const qx=Math.hypot(x,y)-R, qz=Math.abs(z)-halfH;
-  const ax=Math.max(qx,0), az=Math.max(qz,0);
-  return Math.hypot(ax,az)+Math.min(Math.max(qx,qz),0);
-}
-function capsuleSDF(x,y,z,R,halfLen){
-  const qz=Math.max(Math.abs(z)-halfLen,0);
-  return Math.hypot(Math.hypot(x,y),qz)-R;
-}
-function torusSDF(x,y,z,Rm,rm){
-  return Math.hypot(Math.hypot(x,y)-Rm,z)-rm;
-}
-function coneSDF(x,y,z,r1,r2,halfH){
-  const h=halfH*2;
-  const qz=z+halfH;
-  const t=Math.max(0,Math.min(1,qz/h));
-  const r=r1+(r2-r1)*t;
-  const radial=Math.hypot(x,y)-r;
-  const cap=Math.max(Math.abs(z)-halfH,0);
-  return Math.hypot(Math.max(radial,0),cap)+Math.min(Math.max(radial,Math.abs(z)-halfH),0);
-}
-function pointSegmentDistance2D(px,py,ax,ay,bx,by){
-  const dx=bx-ax,dy=by-ay;
-  const l2=dx*dx+dy*dy;
-  if(!l2) return Math.hypot(px-ax,py-ay);
-  const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));
-  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
-}
-function polygonSDF2D(x,y,pts){
-  let inside=false, minD=Infinity;
-  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
-    const a=pts[i],b=pts[j];
-    minD=Math.min(minD,pointSegmentDistance2D(x,y,a[0],a[1],b[0],b[1]));
-    if(((a[1]>y)!==(b[1]>y)) && x < (b[0]-a[0])*(y-a[1])/(b[1]-a[1]+1e-12)+a[0]) inside=!inside;
-  }
-  return inside ? -minD : minD;
-}
-function extrudedPolygonSDF(x,y,z,pts,depth){
-  const d2=polygonSDF2D(x,y,pts), dz=Math.abs(z)-depth/2;
-  return Math.hypot(Math.max(d2,0),Math.max(dz,0))+Math.min(Math.max(d2,dz),0);
-}
-function inverseRotate(x,y,z,rot){
-  let X=x,Y=y,Z=z;
-  const rz=-(rot[2]||0), cz=Math.cos(rz), sz=Math.sin(rz);
-  [X,Y]=[X*cz-Y*sz,X*sz+Y*cz];
-  const ry=-(rot[1]||0), cy=Math.cos(ry), sy=Math.sin(ry);
-  [X,Z]=[X*cy+Z*sy,-X*sy+Z*cy];
-  const rx=-(rot[0]||0), cx=Math.cos(rx), sx=Math.sin(rx);
-  [Y,Z]=[Y*cx-Z*sx,Y*sx+Z*cx];
-  return [X,Y,Z];
-}
-function transformLocal(x,y,z,p){
-  const pos=p.position||[0,0,0], rot=p.rotation||[0,0,0], sc=p.scale||[1,1,1];
-  x-=pos[0]||0; y-=pos[1]||0; z-=pos[2]||0;
-  [x,y,z]=inverseRotate(x,y,z,rot);
-  x/=Math.abs(sc[0]||1); y/=Math.abs(sc[1]||1); z/=Math.abs(sc[2]||1);
-  return [x,y,z];
-}
-function partBounds(p){
-  const pos=p.position||[0,0,0], sc=p.scale||[1,1,1];
-  let r=10, z=10;
-  switch(p.type){
-    case 'sphere': r=p.radius||20; z=r; break;
-    case 'cylinder': case 'tube': r=(p.radius||20); z=(p.height||40)/2; break;
-    case 'cone': r=Math.max(p.radius||20,p.radius2||10); z=(p.height||40)/2; break;
-    case 'torus': r=(p.majorRadius||20)+(p.minorRadius||5); z=p.minorRadius||5; break;
-    case 'capsule': r=p.radius||10; z=(p.length||40)/2+r; break;
-    case 'box': case 'roundedBox': r=(p.size?.[0]||40)/2; z=(p.size?.[2]||40)/2; r=Math.max(r,(p.size?.[1]||40)/2); break;
-    case 'prism': r=0; for(const q of (p.points||[])) r=Math.max(r,Math.hypot(q[0],q[1])); z=(p.depth||20)/2; break;
-    default: r=25; z=25;
-  }
-  const s=Math.max(Math.abs(sc[0]||1),Math.abs(sc[1]||1),Math.abs(sc[2]||1));
-  r*=s; z*=s;
-  return [[pos[0]-r,pos[1]-r,pos[2]-z],[pos[0]+r,pos[1]+r,pos[2]+z]];
-}
-function makePartSDF(p){
-  return (x,y,z)=>{
-    [x,y,z]=transformLocal(x,y,z,p);
-    switch(p.type){
-      case 'sphere': return sphereSDF(x,y,z,p.radius||20);
-      case 'cylinder': return cappedCylinderSDF(x,y,z,p.radius||20,(p.height||40)/2);
-      case 'tube': return Math.max(cappedCylinderSDF(x,y,z,p.outerRadius||20,(p.height||40)/2),-cappedCylinderSDF(x,y,z,p.innerRadius||15,(p.height||40)/2+0.2));
-      case 'cone': return coneSDF(x,y,z,p.radius||20,p.radius2||10,(p.height||40)/2);
-      case 'torus': return torusSDF(x,y,z,p.majorRadius||20,p.minorRadius||5);
-      case 'capsule': return capsuleSDF(x,y,z,p.radius||10,(p.length||40)/2);
-      case 'roundedBox': {
-        const s=p.size||[40,40,40], rr=Math.min(p.radius||4,s[0]/2,s[1]/2,s[2]/2);
-        return roundedBox(x,y,z,s[0]/2-rr,s[1]/2-rr,s[2]/2-rr,rr);
-      }
-      case 'box': default: {
-        const s=p.size||[40,40,40];
-        return Math.max(Math.abs(x)-s[0]/2,Math.max(Math.abs(y)-s[1]/2,Math.abs(z)-s[2]/2));
-      }
-      case 'prism': return extrudedPolygonSDF(x,y,z,p.points||[[-20,-20],[20,-20],[20,20],[-20,20]],p.depth||20);
-    }
-  };
-}
-function buildFieldAndBounds(spec){
-  const parts=Array.isArray(spec.parts)&&spec.parts.length?spec.parts:[{type:'box',size:[40,40,40]}];
-  const funcs=parts.map(makePartSDF);
-  let bmin=[Infinity,Infinity,Infinity], bmax=[-Infinity,-Infinity,-Infinity];
-  parts.forEach(p=>{
-    const [lo,hi]=partBounds(p);
-    for(let i=0;i<3;i++){ bmin[i]=Math.min(bmin[i],lo[i]); bmax[i]=Math.max(bmax[i],hi[i]); }
-  });
-  const base=(x,y,z)=>{
-    let f=Infinity;
-    for(let i=0;i<funcs.length;i++){
-      const v=funcs[i](x,y,z), op=parts[i].op||'union';
-      if(i===0 || op==='union') f=(i===0?Math.min(f,v):Math.min(f,v));
-      else if(op==='subtract') f=Math.max(f,-v);
-      else if(op==='intersect') f=Math.max(f,v);
-    }
-    return f;
-  };
-  const pattern=spec.pattern||'none';
-  if(pattern==='none') return {field:base,bmin,bmax};
-  const span=Math.max(bmax[0]-bmin[0],bmax[1]-bmin[1],bmax[2]-bmin[2],1);
-  const k=2*Math.PI*(spec.periods||2.5)/span;
-  const pf = pattern==='schwarzp'
-    ? (x,y,z)=>Math.cos(k*x)+Math.cos(k*y)+Math.cos(k*z)
-    : pattern==='diamond'
-      ? (x,y,z)=>Math.sin(k*x)*Math.sin(k*y)*Math.sin(k*z)+Math.sin(k*x)*Math.cos(k*y)*Math.cos(k*z)+Math.cos(k*x)*Math.sin(k*y)*Math.cos(k*z)+Math.cos(k*x)*Math.cos(k*y)*Math.sin(k*z)
-      : (x,y,z)=>Math.sin(k*x)*Math.cos(k*y)+Math.sin(k*y)*Math.cos(k*z)+Math.sin(k*z)*Math.cos(k*x);
-  const t=Math.max(0.15,(spec.thickness||1.5)/Math.max(span,1)*k*span/2);
-  return {field:(x,y,z)=>Math.max(base(x,y,z),Math.abs(pf(x,y,z))-t),bmin,bmax};
-}
-// ---- Marching tetrahedra ----
-function addTri(tris,a,b,c,dir){  let ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2];
-  let vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
-  let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
-  if(nx*dir[0]+ny*dir[1]+nz*dir[2] < 0){ const t=b; b=c; c=t; nx=-nx; ny=-ny; nz=-nz; }
-  const len = Math.hypot(nx,ny,nz)||1;
-  tris.push({a,b,c,n:[nx/len,ny/len,nz/len]});
-}
-function interp(p0,p1,f0,f1){
-  const t = f0/(f0-f1);
-  return [p0[0]+(p1[0]-p0[0])*t, p0[1]+(p1[1]-p0[1])*t, p0[2]+(p1[2]-p0[2])*t];
-}
-function avg(pts,idxs){
-  let sx=0,sy=0,sz=0;
-  idxs.forEach(i=>{sx+=pts[i][0];sy+=pts[i][1];sz+=pts[i][2];});
-  const n=idxs.length;
-  return [sx/n,sy/n,sz/n];
-}
-function processTet(pts,vals,tris){
-  const inside = vals.map(v=>v<0);
-  const insideIdx=[], outsideIdx=[];
-  for(let i=0;i<4;i++) (inside[i]?insideIdx:outsideIdx).push(i);
-  const cnt = insideIdx.length;
-  if(cnt===0||cnt===4) return;
-  const ic = avg(pts, insideIdx.length? insideIdx : [0]);
-  const oc = avg(pts, outsideIdx.length? outsideIdx : [0]);
-  const dir = [oc[0]-ic[0], oc[1]-ic[1], oc[2]-ic[2]];
-  if(cnt===1 || cnt===3){
-    const lone = cnt===1 ? insideIdx[0] : outsideIdx[0];
-    const others = [0,1,2,3].filter(i=>i!==lone);
-    const a = interp(pts[lone],pts[others[0]],vals[lone],vals[others[0]]);
-    const b = interp(pts[lone],pts[others[1]],vals[lone],vals[others[1]]);
-    const c = interp(pts[lone],pts[others[2]],vals[lone],vals[others[2]]);
-    addTri(tris,a,b,c,dir);
-  } else {
-    const i0=insideIdx[0], i1=insideIdx[1], o0=outsideIdx[0], o1=outsideIdx[1];
-    const p00=interp(pts[i0],pts[o0],vals[i0],vals[o0]);
-    const p01=interp(pts[i0],pts[o1],vals[i0],vals[o1]);
-    const p10=interp(pts[i1],pts[o0],vals[i1],vals[o0]);
-    const p11=interp(pts[i1],pts[o1],vals[i1],vals[o1]);
-    addTri(tris,p00,p01,p11,dir);
-    addTri(tris,p00,p11,p10,dir);
-  }
-}
-const tetIdx=[[0,5,1,6],[0,1,2,6],[0,2,3,6],[0,3,7,6],[0,7,4,6],[0,4,5,6]];
-const cubeOff=[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
-async function generateMesh(fieldFn, res, bmin, bmax){
-  const N = res+1;
-  const dx=(bmax[0]-bmin[0])/res, dy=(bmax[1]-bmin[1])/res, dz=(bmax[2]-bmin[2])/res;
-  const vals = new Float32Array(N*N*N);
-  for(let i=0;i<N;i++){
-    const x=bmin[0]+i*dx;
-    for(let j=0;j<N;j++){
-      const y=bmin[1]+j*dy;
-      for(let k=0;k<N;k++){
-        const z=bmin[2]+k*dz;
-        vals[(i*N+j)*N+k]=fieldFn(x,y,z);
-      }
-    }
-    if((i&3)===3) await new Promise(requestAnimationFrame);
-  }
-  function idx(i,j,k){return (i*N+j)*N+k;}
-  function pt(i,j,k){return [bmin[0]+i*dx, bmin[1]+j*dy, bmin[2]+k*dz];}
-  const tris=[];
-  for(let i=0;i<res;i++){
-    for(let j=0;j<res;j++)for(let k=0;k<res;k++){
-    const cp=[],cv=[];
-    for(let c=0;c<8;c++){
-      const oi=i+cubeOff[c][0], oj=j+cubeOff[c][1], ok=k+cubeOff[c][2];
-      cp.push(pt(oi,oj,ok));
-      cv.push(vals[idx(oi,oj,ok)]);
-    }
-    for(let t=0;t<6;t++){
-      const ti=tetIdx[t];
-      processTet([cp[ti[0]],cp[ti[1]],cp[ti[2]],cp[ti[3]]],[cv[ti[0]],cv[ti[1]],cv[ti[2]],cv[ti[3]]],tris);
-    }
-    if((i&1)===1) await new Promise(requestAnimationFrame);
-    }
-  }
-  return tris;
-}
-function trisToSTL(tris){
+// Geometry and meshing run in mesh-worker.js.\nfunction trisToSTL(tris){
   const count=tris instanceof Float32Array?Math.floor(tris.length/12):tris.length;
   const buf=new ArrayBuffer(84+50*count),dv=new DataView(buf);dv.setUint32(80,count,true);let off=84;
   if(tris instanceof Float32Array){
-    for(let i=0;i<count;i++){const s=i*12;
-      dv.setFloat32(off,tris[s],true);dv.setFloat32(off+4,tris[s+1],true);dv.setFloat32(off+8,tris[s+2],true);off+=12;
+    for(let i=0;i<count;i++){const s=i*12;dv.setFloat32(off,tris[s],true);dv.setFloat32(off+4,tris[s+1],true);dv.setFloat32(off+8,tris[s+2],true);off+=12;
       for(let j=3;j<12;j+=3){dv.setFloat32(off,tris[s+j],true);dv.setFloat32(off+4,tris[s+j+1],true);dv.setFloat32(off+8,tris[s+j+2],true);off+=12;}
       dv.setUint16(off,0,true);off+=2;
     }
     return new Uint8Array(buf);
   }
-  for(const t of tris){dv.setFloat32(off,t.n[0],true);dv.setFloat32(off+4,t.n[1],true);dv.setFloat32(off+8,t.n[2],true);off+=12;
-    for(const v of [t.a,t.b,t.c]){dv.setFloat32(off,v[0],true);dv.setFloat32(off+4,v[1],true);dv.setFloat32(off+8,v[2],true);off+=12;}
-    dv.setUint16(off,0,true);off+=2;
-  }
   return new Uint8Array(buf);
 }
 function meshStats(tris){
   let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity,vol=0;
+  const count=tris instanceof Float32Array?Math.floor(tris.length/12):tris.length;
   if(tris instanceof Float32Array){
-    for(let i=0;i<tris.length;i+=12){const a=tris[i+3],b=tris[i+6],cc=tris[i+9],ay=tris[i+4],by=tris[i+7],cy=tris[i+10],az=tris[i+5],bz=tris[i+8],cz=tris[i+11];
+    for(let i=0;i<count;i++){const s=i*12,a=tris[s+3],ay=tris[s+4],az=tris[s+5],b=tris[s+6],by=tris[s+7],bz=tris[s+8],cc=tris[s+9],cy=tris[s+10],cz=tris[s+11];
       minX=Math.min(minX,a,b,cc);maxX=Math.max(maxX,a,b,cc);minY=Math.min(minY,ay,by,cy);maxY=Math.max(maxY,ay,by,cy);minZ=Math.min(minZ,az,bz,cz);maxZ=Math.max(maxZ,az,bz,cz);
       vol+=(a*(by*cz-bz*cy)-ay*(b*cz-bz*cc)+az*(b*cy-by*cc))/6;
     }
-  }else for(const t of tris){
-    for(const v of [t.a,t.b,t.c]){if(v[0]<minX)minX=v[0];if(v[0]>maxX)maxX=v[0];if(v[1]<minY)minY=v[1];if(v[1]>maxY)maxY=v[1];if(v[2]<minZ)minZ=v[2];if(v[2]>maxZ)maxZ=v[2];}
-    const a=t.a,b=t.b,cc=t.c;vol+=(a[0]*(b[1]*cc[2]-b[2]*cc[1])-a[1]*(b[0]*cc[2]-b[2]*cc[0])+a[2]*(b[0]*cc[1]-b[1]*cc[0]))/6;
   }
   return {x:maxX-minX,y:maxY-minY,z:maxZ-minZ,volume:Math.abs(vol)};
 }
@@ -470,117 +275,89 @@ function downloadExtDataAsTxt(status, dlBtn, tris, filename, cb){
 }
 
 // ================= 3D viewer factory (one per view) =================
-function createViewer(wrapId, wireToggleId){
-  const wrapEl = document.getElementById(wrapId);
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
-  const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
-  wrapEl.appendChild(renderer.domElement);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-  const d1 = new THREE.DirectionalLight(0xffffff, 0.8); d1.position.set(1,1,1); scene.add(d1);
-  const d2 = new THREE.DirectionalLight(0xffffff, 0.4); d2.position.set(-1,-0.5,-1); scene.add(d2);
-
-  const v = { scene, camera, renderer, meshObj:null, wrapEl,
-    spherical:{theta:0.9, phi:1.1, radius:120}, target:[0,0,0] };
-
-  function resize(){
-    if(!wrapEl.clientWidth || !wrapEl.clientHeight) return;
-    camera.aspect = wrapEl.clientWidth/wrapEl.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(wrapEl.clientWidth, wrapEl.clientHeight);
-  }
-  new ResizeObserver(resize).observe(wrapEl);
-
-  function updateCamera(){
-    const s=v.spherical;
-    camera.position.set(
-      v.target[0] + s.radius*Math.sin(s.phi)*Math.sin(s.theta),
-      v.target[1] + s.radius*Math.cos(s.phi),
-      v.target[2] + s.radius*Math.sin(s.phi)*Math.cos(s.theta)
-    );
-    camera.lookAt(v.target[0],v.target[1],v.target[2]);
-  }
-  v.updateCamera = updateCamera;
-
-  let dragging=false, lastX=0, lastY=0;
-  const dom = renderer.domElement;
-  dom.addEventListener('pointerdown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; dom.setPointerCapture(e.pointerId); });
-  dom.addEventListener('pointerup', ()=>dragging=false);
-  dom.addEventListener('pointerleave', ()=>dragging=false);
-  dom.addEventListener('pointermove', e=>{
-    if(!dragging) return;
-    const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
-    v.spherical.theta -= dx*0.008;
-    v.spherical.phi = Math.min(Math.max(v.spherical.phi - dy*0.008, 0.15), Math.PI-0.15);
-    updateCamera();
-  });
-  dom.addEventListener('wheel', e=>{
-    e.preventDefault();
-    v.spherical.radius = Math.min(Math.max(v.spherical.radius * (1 + e.deltaY*0.001), 10), 2000);
-    updateCamera();
-  }, {passive:false});
-  let pinchDist=null;
-  dom.addEventListener('touchstart', e=>{ if(e.touches.length===2) pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); });
-  dom.addEventListener('touchmove', e=>{
-    if(e.touches.length===2){
-      const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
-      if(pinchDist){ v.spherical.radius = Math.min(Math.max(v.spherical.radius*(pinchDist/d),10),2000); updateCamera(); }
-      pinchDist=d;
-    }
-  }, {passive:false});
-
-  function animate(){ requestAnimationFrame(animate); resize(); renderer.render(scene,camera); }
-  requestAnimationFrame(animate);
-
-  v.showMesh = function(tris){
-    if(v.meshObj){
-      scene.remove(v.meshObj);
-      v.meshObj.geometry.dispose(); v.meshObj.material.dispose();
-      v.meshObj.children.forEach(c=>{ c.geometry.dispose(); c.material.dispose(); });
-    }
-    const triCount = tris instanceof Float32Array ? Math.floor(tris.length/12) : tris.length;
-    const positions = new Float32Array(triCount*9);
-    if(tris instanceof Float32Array){
-      for(let i=0;i<triCount;i++){
-        const s=i*12,o=i*9;
-        positions[o]=tris[s+3]; positions[o+1]=tris[s+4]; positions[o+2]=tris[s+5];
-        positions[o+3]=tris[s+6]; positions[o+4]=tris[s+7]; positions[o+5]=tris[s+8];
-        positions[o+6]=tris[s+9]; positions[o+7]=tris[s+10]; positions[o+8]=tris[s+11];
-      }
-    }else tris.forEach((t,i)=>{
-      const o=i*9;
-      positions[o]=t.a[0]; positions[o+1]=t.a[1]; positions[o+2]=t.a[2];
-      positions[o+3]=t.b[0]; positions[o+4]=t.b[1]; positions[o+5]=t.b[2];
-      positions[o+6]=t.c[0]; positions[o+7]=t.c[1]; positions[o+8]=t.c[2];
-    });
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
-    geo.computeVertexNormals();
-    geo.computeBoundingSphere();
-    const mat = new THREE.MeshStandardMaterial({color:0xa8501f, flatShading:true, side:THREE.DoubleSide, roughness:0.6, metalness:0.05});
-    const meshObj = new THREE.Mesh(geo, mat);
-    const wireGeo = new THREE.WireframeGeometry(geo);
-    const wireMat = new THREE.LineBasicMaterial({color:0x2a1608, transparent:true, opacity:0.35});
-    const wireLines = new THREE.LineSegments(wireGeo, wireMat);
-    wireLines.visible = document.getElementById(wireToggleId).checked && triCount < 25000;
-    meshObj.userData.wire = wireLines;
-    meshObj.add(wireLines);
-    scene.add(meshObj);
-    v.meshObj = meshObj;
-    const bs = geo.boundingSphere;
-    v.target = [bs.center.x, bs.center.y, bs.center.z];
-    v.spherical.radius = Math.max(bs.radius*2.6, 20);
-    resize();
-    updateCamera();
-  };
-  document.getElementById(wireToggleId).addEventListener('change', e=>{
-    if(v.meshObj && v.meshObj.userData.wire) v.meshObj.userData.wire.visible = e.target.checked;
-  });
-  return v;
+let threeLoadPromise=null;
+function loadThree(){
+  if(window.THREE)return Promise.resolve(window.THREE);
+  if(threeLoadPromise)return threeLoadPromise;
+  threeLoadPromise=new Promise((resolve,reject)=>{
+    const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+    s.onload=()=>resolve(window.THREE);s.onerror=()=>reject(new Error('3D viewer library failed to load.'));
+    document.head.appendChild(s);
+  });return threeLoadPromise;
 }
-
+async function createViewer(wrapId,wireToggleId){
+  const THREE=await loadThree(),wrapEl=document.getElementById(wrapId),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(45,1,0.1,5000);
+  const renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));wrapEl.appendChild(renderer.domElement);
+  scene.add(new THREE.AmbientLight(0xffffff,0.6));const d1=new THREE.DirectionalLight(0xffffff,0.8);d1.position.set(1,1,1);scene.add(d1);
+  const d2=new THREE.DirectionalLight(0xffffff,0.4);d2.position.set(-1,-0.5,-1);scene.add(d2);
+  const v={scene,camera,renderer,meshObj:null,wrapEl,spherical:{theta:0.9,phi:1.1,radius:120},target:[0,0,0]};let queued=false;
+  function render(){queued=false;const w=wrapEl.clientWidth,h=wrapEl.clientHeight;if(!w||!h)return;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false);renderer.render(scene,camera);}
+  function requestRender(){if(queued)return;queued=true;requestAnimationFrame(render);}
+  new ResizeObserver(requestRender).observe(wrapEl);
+  function updateCamera(){const s=v.spherical;camera.position.set(v.target[0]+s.radius*Math.sin(s.phi)*Math.sin(s.theta),v.target[1]+s.radius*Math.cos(s.phi),v.target[2]+s.radius*Math.sin(s.phi)*Math.cos(s.theta));camera.lookAt(v.target[0],v.target[1],v.target[2]);requestRender();}
+  let dragging=false,lastX=0,lastY=0;const dom=renderer.domElement;
+  dom.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;dom.setPointerCapture(e.pointerId);});
+  dom.addEventListener('pointerup',()=>dragging=false);dom.addEventListener('pointercancel',()=>dragging=false);
+  dom.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;v.spherical.theta-=dx*0.008;v.spherical.phi=Math.min(Math.max(v.spherical.phi-dy*0.008,0.15),Math.PI-0.15);updateCamera();});
+  dom.addEventListener('wheel',e=>{e.preventDefault();v.spherical.radius=Math.min(Math.max(v.spherical.radius*(1+e.deltaY*0.001),10),2000);updateCamera();},{passive:false});
+  dom.addEventListener('dblclick',()=>{v.spherical.theta=0.9;v.spherical.phi=1.1;updateCamera();});
+  let pinchDist=null;
+  dom.addEventListener('touchstart',e=>{if(e.touches.length===2)pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);},{passive:true});
+  dom.addEventListener('touchmove',e=>{if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);if(pinchDist){v.spherical.radius=Math.min(Math.max(v.spherical.radius*(pinchDist/d),10),2000);updateCamera();}pinchDist=d;}},{passive:false});
+  v.showMesh=function(tris){
+    if(v.meshObj){scene.remove(v.meshObj);v.meshObj.geometry.dispose();v.meshObj.material.dispose();v.meshObj.children.forEach(ch=>{ch.geometry.dispose();ch.material.dispose();});}
+    const triCount=Math.floor(tris.length/12),positions=new Float32Array(triCount*9);
+    for(let i=0;i<triCount;i++){const s=i*12,o=i*9;positions[o]=tris[s+3];positions[o+1]=tris[s+4];positions[o+2]=tris[s+5];positions[o+3]=tris[s+6];positions[o+4]=tris[s+7];positions[o+5]=tris[s+8];positions[o+6]=tris[s+9];positions[o+7]=tris[s+10];positions[o+8]=tris[s+11];}
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3));geo.computeVertexNormals();geo.computeBoundingSphere();
+    const mat=new THREE.MeshStandardMaterial({color:0xa8501f,flatShading:true,side:THREE.DoubleSide,roughness:0.6,metalness:0.05}),meshObj=new THREE.Mesh(geo,mat);
+    if(triCount<20000){const wg=new THREE.WireframeGeometry(geo),wm=new THREE.LineBasicMaterial({color:0x2a1608,transparent:true,opacity:0.35}),wl=new THREE.LineSegments(wg,wm);wl.visible=document.getElementById(wireToggleId).checked;meshObj.userData.wire=wl;meshObj.add(wl);}
+    scene.add(meshObj);v.meshObj=meshObj;const bs=geo.boundingSphere;v.target=[bs.center.x,bs.center.y,bs.center.z];v.spherical.radius=Math.max(bs.radius*2.6,20);updateCamera();
+  };
+  document.getElementById(wireToggleId).addEventListener('change',e=>{if(v.meshObj&&v.meshObj.userData.wire)v.meshObj.userData.wire.visible=e.target.checked;requestRender();});
+  requestRender();return v;
+}
 function val(id){ return parseFloat(document.getElementById(id).value); }
+
+// ================= Persistent artifacts =================
+const ART_META_KEY='g3d_artifact_meta_v1',ART_DB_NAME='g3d_artifacts_db_v1',ART_STORE='files';
+let artifactsMeta=[];try{artifactsMeta=JSON.parse(localStorage.getItem(ART_META_KEY)||'[]');}catch(e){}
+if(!Array.isArray(artifactsMeta))artifactsMeta=[];
+let artifactDBPromise=null;
+function openArtifactDB(){
+  if(artifactDBPromise)return artifactDBPromise;
+  artifactDBPromise=new Promise((resolve,reject)=>{
+    if(!window.indexedDB){reject(new Error('IndexedDB unavailable.'));return;}
+    const req=indexedDB.open(ART_DB_NAME,1);
+    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(ART_STORE))req.result.createObjectStore(ART_STORE);};
+    req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('Artifact storage failed.'));
+  });return artifactDBPromise;
+}
+async function putArtifactBlob(id,blob){const db=await openArtifactDB();await new Promise((resolve,reject)=>{const tx=db.transaction(ART_STORE,'readwrite');tx.objectStore(ART_STORE).put(blob,id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}
+async function getArtifactBlob(id){const db=await openArtifactDB();return await new Promise((resolve,reject)=>{const tx=db.transaction(ART_STORE,'readonly'),req=tx.objectStore(ART_STORE).get(id);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);});}
+async function deleteArtifactBlob(id){try{const db=await openArtifactDB();await new Promise((resolve,reject)=>{const tx=db.transaction(ART_STORE,'readwrite');tx.objectStore(ART_STORE).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}catch(e){}}
+function persistArtifactMeta(){try{localStorage.setItem(ART_META_KEY,JSON.stringify(artifactsMeta));}catch(e){}}
+async function saveArtifact(source,filename,stlBytes,triangles){
+  const blob=new Blob([stlBytes],{type:'model/stl'}),item={id:'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),source,filename,bytes:blob.size,triangles:Number(triangles)||0,created:Date.now()};
+  await putArtifactBlob(item.id,blob);artifactsMeta.unshift(item);
+  if(artifactsMeta.length>100){const removed=artifactsMeta.splice(100);removed.forEach(x=>deleteArtifactBlob(x.id));}
+  persistArtifactMeta();renderArtifacts();return item;
+}
+function formatBytes(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';return (n/1048576).toFixed(2)+' MB';}
+function renderArtifacts(){
+  const el=document.getElementById('artifactList');if(!el)return;
+  if(!artifactsMeta.length){el.innerHTML='<div class="artifactEmpty">No artifacts yet. Generate an STL and it will appear here.</div>';return;}
+  el.innerHTML=artifactsMeta.map(x=>'<div class="artifactItem"><div class="artifactMain"><div class="artifactName">'+esc(x.filename)+'</div><div class="artifactMeta">'+esc(x.source)+' · '+formatBytes(x.bytes)+' · '+x.triangles.toLocaleString()+' triangles</div></div><div class="artifactActions"><button class="btn-secondary artifactDownload" data-id="'+x.id+'">Download</button><button class="btn-secondary artifactCopy" data-id="'+x.id+'">Copy</button><button class="btn-secondary artifactDelete" data-id="'+x.id+'">Delete</button></div></div>').join('');
+  el.querySelectorAll('.artifactDownload').forEach(b=>b.onclick=()=>downloadArtifact(b.dataset.id));el.querySelectorAll('.artifactCopy').forEach(b=>b.onclick=()=>copyArtifact(b.dataset.id));el.querySelectorAll('.artifactDelete').forEach(b=>b.onclick=()=>removeArtifact(b.dataset.id));
+}
+async function downloadArtifact(id){const meta=artifactsMeta.find(x=>x.id===id);if(!meta)return;const blob=await getArtifactBlob(id);if(!blob){alert('Artifact data is missing.');return;}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=meta.filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+async function copyArtifact(id){
+  const meta=artifactsMeta.find(x=>x.id===id);if(!meta)return;
+  try{const blob=await getArtifactBlob(id);if(!blob)throw new Error('Artifact data is missing.');if(!navigator.clipboard||!window.ClipboardItem)throw new Error('Binary clipboard unavailable.');await navigator.clipboard.write([new ClipboardItem({'model/stl':blob})]);alert('STL copied to the clipboard.');}
+  catch(e){try{await navigator.clipboard.writeText(meta.filename);alert('This browser cannot copy binary STL data, so the filename was copied instead.');}catch(x){alert('Copy is not available in this browser.');}}
+}
+async function removeArtifact(id){artifactsMeta=artifactsMeta.filter(x=>x.id!==id);persistArtifactMeta();await deleteArtifactBlob(id);renderArtifacts();}
+function openSettings(){closeDrawer();const p=document.getElementById('settingsPanel');p.classList.add('open');p.setAttribute('aria-hidden','false');renderArtifacts();}
+function closeSettings(){const p=document.getElementById('settingsPanel');p.classList.remove('open');p.setAttribute('aria-hidden','true');}
 
 // ================= View 1: Pattern Generator (existing tool, unchanged behavior) =================
 const shapeParams = {
@@ -631,50 +408,23 @@ let viewerPG = null;
 let lastTrisPG = null, lastFilenamePG = 'model.stl';
 
 async function generatePG(){
-  const btn = document.getElementById('genBtn');
-  const dlBtn = document.getElementById('dlBtn');
-  const status = document.getElementById('status');
-  btn.disabled = true; dlBtn.disabled = true;
-  status.textContent = 'Building geometry...';
-  await new Promise(r=>setTimeout(r,30));
+  const btn=document.getElementById('genBtn'),dlBtn=document.getElementById('dlBtn'),status=document.getElementById('status');
+  btn.disabled=true;dlBtn.disabled=true;status.textContent='Building geometry in background…';
   try{
-    const shape = shapeSel.value;
-    const roundedEl = document.getElementById('rounded');
-    const spec = {
-      shape,
-      size: shape==='cube'?val('p_size'):undefined,
-      diameter: (shape==='sphere'||shape==='cylinder')?val('p_diameter'):undefined,
-      height: shape==='cylinder'?val('p_height'):undefined,
-      outerDiameter: shape==='ring'?val('p_outerDiameter'):undefined,
-      tubeDiameter: shape==='ring'?val('p_tubeDiameter'):undefined,
-      pattern: document.getElementById('pattern').value,
-      periods: val('periods'),
-      thickness: val('thickness'),
-      rounded: roundedEl ? roundedEl.checked : false,
-      cornerRadius: roundedEl ? val('cornerRadius') : 0
-    };
-    const res = Math.min(36,parseInt(document.getElementById('quality').value,10));
-    const {field,bmin,bmax} = buildFieldAndBounds(spec);
-    status.textContent = 'Meshing (this can take a few seconds)...';
-    await new Promise(r=>setTimeout(r,30));
-    const tris = await generateMesh(field, res, bmin, bmax);
-    if(tris.length===0){
-      status.textContent = 'No surface found — try increasing wave density or checking dimensions.';
-      btn.disabled=false; return;
-    }
-    lastTrisPG = tris;
-    let nameVal = document.getElementById('customName').value.trim();
-    if(!nameVal) nameVal = `${shape}_${spec.pattern}_infill`;
-    lastFilenamePG = nameVal.replace(/\.stl$/i,'') + '.stl';
-    if(!viewerPG) viewerPG = createViewer('previewWrap','wireToggle');
-    document.getElementById('previewCard').style.display='';
-    viewerPG.showMesh(tris);
-    status.textContent = `Generated ${tris.length.toLocaleString()} triangles. Rotate/zoom the preview, then download when ready.`;
-    dlBtn.disabled = false;
-  } catch(err){
-    status.textContent = 'Error: ' + err.message;
-  }
-  btn.disabled = false;
+    const shape=shapeSel.value,roundedEl=document.getElementById('rounded');
+    const legacySpec={shape,size:shape==='cube'?val('p_size'):undefined,diameter:(shape==='sphere'||shape==='cylinder')?val('p_diameter'):undefined,height:shape==='cylinder'?val('p_height'):undefined,outerDiameter:shape==='ring'?val('p_outerDiameter'):undefined,tubeDiameter:shape==='ring'?val('p_tubeDiameter'):undefined,pattern:document.getElementById('pattern').value,periods:val('periods'),thickness:val('thickness'),rounded:roundedEl?roundedEl.checked:false,cornerRadius:roundedEl?val('cornerRadius'):0};
+    const res=Math.min(28,parseInt(document.getElementById('quality').value,10));
+    const key=JSON.stringify({legacySpec,res}),tris=await getMeshFromWorker(legacySpec,res,key,'pattern');
+    if(!tris.length){status.textContent='No surface found — try adjusting the dimensions or infill settings.';btn.disabled=false;return;}
+    lastTrisPG=tris;let nameVal=document.getElementById('customName').value.trim();if(!nameVal)nameVal=shape+'_'+legacySpec.pattern+'_infill';
+    lastFilenamePG=nameVal.replace(/\.stl$/i,'')+'.stl';
+    const triCount=Math.floor(tris.length/12),stl=trisToSTL(tris);
+    if(!viewerPG)viewerPG=await createViewer('previewWrap','wireToggle');
+    document.getElementById('previewCard').style.display='';viewerPG.showMesh(tris);
+    await saveArtifact('Pattern Generator',lastFilenamePG,stl,triCount);
+    status.textContent='Generated '+triCount.toLocaleString()+' triangles. Saved to Artifacts.';dlBtn.disabled=false;
+  }catch(err){console.error(err);status.textContent='Error: '+(err.message||err);}
+  btn.disabled=false;
 }
 document.getElementById('genBtn').addEventListener('click', generatePG);
 document.getElementById('dlBtn').addEventListener('click', ()=>{
@@ -796,35 +546,17 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map();
-const meshWorker=new Worker('./mesh-worker.js');
-let meshRequestId=0;
-const meshWaiters=new Map();
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker.js');
+let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
-  if(m.type==='progress'){
-    const statusEl=document.getElementById('aiStatus');
-    if(statusEl) statusEl.textContent='Building custom mesh… '+m.value+'%';
-    return;
-  }
-  const waiter=meshWaiters.get(m.id);
-  if(!waiter) return;
-  meshWaiters.delete(m.id);
-  if(m.type==='result') waiter.resolve(m.data);
-  else waiter.reject(new Error(m.message||'Mesh worker failed.'));
+  if(m.type==='progress'){const el=document.getElementById(m.mode==='pattern'?'status':'aiStatus');if(el)el.textContent=(m.mode==='pattern'?'Building geometry… ':'Building custom mesh… ')+m.value+'%';return;}
+  const w=meshWaiters.get(m.id);if(!w)return;meshWaiters.delete(m.id);if(m.type==='result')w.resolve(m.data);else w.reject(new Error(m.message||'Mesh worker failed.'));
 });
-async function getMeshFromWorker(spec,res,key){
-  if(key && meshCache.has(key)) return meshCache.get(key);
-  const id=++meshRequestId;
-  const data=await new Promise((resolve,reject)=>{
-    meshWaiters.set(id,{resolve,reject});
-    meshWorker.postMessage({type:'mesh',id,spec,res});
-  });
-  if(key){
-    meshCache.set(key,data);
-    if(meshCache.size>6) meshCache.delete(meshCache.keys().next().value);
-  }
-  return data;
+async function getMeshFromWorker(spec,res,key,mode){
+  const cacheKey=key?mode+':'+key:null;if(cacheKey&&meshCache.has(cacheKey))return meshCache.get(cacheKey);
+  const id=++meshRequestId;const data=await new Promise((resolve,reject)=>{meshWaiters.set(id,{resolve,reject});meshWorker.postMessage({type:'mesh',id,mode:mode||'ai',spec,res});});
+  if(cacheKey){meshCache.set(cacheKey,data);if(meshCache.size>6)meshCache.delete(meshCache.keys().next().value);}return data;
 }
 
 const CHAT_KEY='g3d_ai_chats_v1';
@@ -834,27 +566,34 @@ function saveChats(){try{localStorage.setItem(CHAT_KEY,JSON.stringify(chats));}c
 function getChat(){return chats.find(function(x){return x.id===activeChatId;})||null;}
 function newChat(){
   const x={id:'c_'+Date.now(),title:'New design',messages:[],spec:null,updated:Date.now()};
-  chats.unshift(x);activeChatId=x.id;saveChats();renderChats();renderChat();return x;
+  chats.unshift(x);activeChatId=x.id;saveChats();renderChats();renderChat();const p=document.getElementById('aiPrompt');if(p)p.value='';return x;
+}
+function deleteChat(id){
+  const wasActive=id===activeChatId;chats=chats.filter(x=>x.id!==id);
+  if(!chats.length){const x={id:'c_'+Date.now(),title:'New design',messages:[],spec:null,updated:Date.now()};chats=[x];activeChatId=x.id;}
+  else if(wasActive)activeChatId=chats[0].id;
+  saveChats();const x=getChat();aiPrevSpec=x&&x.spec||null;renderChats();renderChat();const p=document.getElementById('aiPrompt');if(p)p.value='';
 }
 function renderChats(){
   const el=document.getElementById('chatList');
-  el.innerHTML=chats.length?chats.map(function(x){return '<button class="chatItem '+(x.id===activeChatId?'active':'')+'" data-id="'+x.id+'"><span>'+esc(x.title)+'</span></button>';}).join(''):'<div class="chatEmpty">Saved chats appear here.</div>';
-  el.querySelectorAll('.chatItem').forEach(function(b){b.onclick=function(){activeChatId=b.dataset.id;const x=getChat();aiPrevSpec=x&&x.spec||null;renderChats();renderChat();closeDrawer();};});
+  el.innerHTML=chats.length?chats.map(x=>'<div class="chatItem '+(x.id===activeChatId?'active':'')+'"><button class="chatOpen" data-id="'+x.id+'"><span>'+esc(x.title)+'</span></button><button class="chatDelete" data-id="'+x.id+'" aria-label="Delete chat">×</button></div>').join(''):'<div class="chatEmpty">Saved chats appear here.</div>';
+  el.querySelectorAll('.chatOpen').forEach(b=>b.onclick=()=>{activeChatId=b.dataset.id;const x=getChat();aiPrevSpec=x&&x.spec||null;renderChats();renderChat();closeDrawer();document.getElementById('aiPrompt').value='';});
+  el.querySelectorAll('.chatDelete').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();deleteChat(b.dataset.id);});
 }
 function renderChat(){
   const x=getChat(),box=document.getElementById('chatMessages');
   if(!x){box.innerHTML='';return;}
-  box.innerHTML=x.messages.map(function(m){return '<div class="chatMsg '+(m.role==='user'?'user':'')+'">'+esc(m.text)+'</div>';}).join('');
-  box.scrollTop=box.scrollHeight;document.getElementById('aiPrompt').value='';aiPrevSpec=x.spec||null;
+  box.innerHTML=x.messages.map(m=>'<div class="chatMsg '+(m.role==='user'?'user':'')+'">'+esc(m.text)+'</div>').join('');
+  box.scrollTop=box.scrollHeight;aiPrevSpec=x.spec||null;
 }
 function addMessage(role,text){
-  const x=getChat()||newChat();x.messages.push({role:role,text:String(text).slice(0,5000),time:Date.now()});
-  if(x.messages.length===1){x.title=String(text).replace(/\s+/g,' ').trim().slice(0,42)||'New design';}
-  x.updated=Date.now();chats.sort(function(a,b){return b.updated-a.updated;});activeChatId=x.id;saveChats();renderChats();renderChat();
+  const x=getChat()||newChat();x.messages.push({role,time:Date.now(),text:String(text).slice(0,5000)});
+  if(x.messages.length===1)x.title=String(text).replace(/\s+/g,' ').trim().slice(0,42)||'New design';
+  x.updated=Date.now();chats.sort((a,b)=>b.updated-a.updated);activeChatId=x.id;saveChats();renderChats();renderChat();
 }
 function openDrawer(){document.getElementById('chatDrawer').classList.add('open');document.getElementById('drawerShade').classList.add('show');}
 function closeDrawer(){document.getElementById('chatDrawer').classList.remove('open');document.getElementById('drawerShade').classList.remove('show');}
-document.getElementById('chatMenuBtn').onclick=openDrawer;document.getElementById('chatClose').onclick=closeDrawer;document.getElementById('drawerShade').onclick=closeDrawer;
+document.getElementById('chatMenuBtn').onclick=openDrawer;document.getElementById('chatClose').onclick=closeDrawer;document.getElementById('drawerShade').onclick=closeDrawer;document.getElementById('settingsBtn').onclick=openSettings;document.getElementById('settingsClose').onclick=closeSettings;
 document.getElementById('newChatBtn').onclick=function(){newChat();closeDrawer();};
 try{chats=JSON.parse(localStorage.getItem(CHAT_KEY)||'[]');}catch(e){chats=[];}if(!Array.isArray(chats))chats=[];if(!chats.length)newChat();else{activeChatId=chats[0].id;renderChats();renderChat();}
 
@@ -872,38 +611,21 @@ async function generateAI(){
   const text=promptEl.value.trim();
   if(!text){status.textContent='Describe the part first.';return;}
   btn.disabled=true;dlBtn.disabled=true;document.getElementById('aiInfoCard').style.display='none';addMessage('user',text);
-  let spec=null,usedAI=false;
   try{
     status.textContent='Qwen is planning the custom geometry locally...';
-    const raw=await window.g3dQwenToSpec(aiPrevSpec,text,status);
-    spec=mergeAISpec(raw,aiPrevSpec);usedAI=true;
-  }catch(err){
-    console.error('Qwen failed:',err);
-    status.textContent='Qwen could not produce a valid geometry plan. No preset substitution was made.';
-    btn.disabled=false;return;
-  }
-  try{
-    status.textContent='Building custom CSG geometry in background...';
-    const cacheKey=JSON.stringify(spec); const tris=await getMeshFromWorker(spec,spec.quality,cacheKey);
+    const raw=await window.g3dQwenToSpec(aiPrevSpec,text,status),spec=mergeAISpec(raw,aiPrevSpec);
+    status.textContent='Building custom geometry in background...';
+    const key=JSON.stringify(spec),tris=await getMeshFromWorker(spec,spec.quality,key,'ai');
     if(!tris.length){status.textContent='The requested construction produced no printable surface. Try adjusting dimensions or the description.';btn.disabled=false;return;}
-    aiPrevSpec=spec;lastTrisAI=tris;lastFilenameAI=nameFromSpec(spec).replace(/\s+/g,'_')+'.stl';const x=getChat();if(x){x.spec=spec;x.messages.push({role:'assistant',text:'Generated '+spec.parts.length+' custom parts: '+lastFilenameAI,time:Date.now()});x.updated=Date.now();saveChats();renderChats();renderChat();}
-    if(!viewerAI)viewerAI=createViewer('aiPreviewWrap','aiWireToggle');
+    aiPrevSpec=spec;lastTrisAI=tris;lastFilenameAI=nameFromSpec(spec).replace(/\s+/g,'_')+'.stl';
+    const x=getChat();if(x){x.spec=spec;x.messages.push({role:'assistant',text:'Generated '+spec.parts.length+' custom parts: '+lastFilenameAI,time:Date.now()});x.updated=Date.now();saveChats();renderChats();renderChat();}
+    if(!viewerAI)viewerAI=await createViewer('aiPreviewWrap','aiWireToggle');
     document.getElementById('aiPreviewCard').style.display='';viewerAI.showMesh(tris);
+    const triCount=Math.floor(tris.length/12),stl=trisToSTL(tris);await saveArtifact('G3D AI',lastFilenameAI,stl,triCount);
     const stats=meshStats(tris),grid=document.getElementById('aiInfoGrid');
-    grid.innerHTML=`
-      <div><span>AI model</span>Qwen2.5-0.5B-Instruct</div>
-      <div><span>Geometry</span>${spec.parts.length} custom parts / CSG</div>
-      <div><span>File name</span>${lastFilenameAI}</div>
-      <div><span>Triangles</span>${tris.length.toLocaleString()}</div>
-      <div><span>X dimension</span>${stats.x.toFixed(1)} mm</div>
-      <div><span>Y dimension</span>${stats.y.toFixed(1)} mm</div>
-      <div><span>Z dimension</span>${stats.z.toFixed(1)} mm</div>
-      <div><span>Approx. volume</span>${(stats.volume/1000).toFixed(2)} cm³</div>`;
-    document.getElementById('aiInfoCard').style.display='';
-    const triCount=tris instanceof Float32Array?Math.floor(tris.length/12):tris.length;
-    status.textContent=(usedAI?'Qwen created a custom geometry plan. ':'')+`Generated ${triCount.toLocaleString()} triangles from ${spec.parts.length} real geometric parts.`;
-    dlBtn.disabled=false;
-  }catch(err){status.textContent='Geometry error: '+err.message;}
+    grid.innerHTML='<div><span>AI model</span>Qwen2.5-0.5B-Instruct</div><div><span>Geometry</span>'+spec.parts.length+' custom parts / CSG</div><div><span>File name</span>'+lastFilenameAI+'</div><div><span>Triangles</span>'+triCount.toLocaleString()+'</div><div><span>X dimension</span>'+stats.x.toFixed(1)+' mm</div><div><span>Y dimension</span>'+stats.y.toFixed(1)+' mm</div><div><span>Z dimension</span>'+stats.z.toFixed(1)+' mm</div><div><span>Approx. volume</span>'+(stats.volume/1000).toFixed(2)+' cm³</div>';
+    document.getElementById('aiInfoCard').style.display='';status.textContent='Generated '+triCount.toLocaleString()+' triangles from '+spec.parts.length+' real geometric parts. Saved to Artifacts.';dlBtn.disabled=false;
+  }catch(err){console.error(err);status.textContent='Error: '+(err.message||err);}
   btn.disabled=false;
 }
 document.getElementById('aiGenBtn').addEventListener('click',generateAI);
