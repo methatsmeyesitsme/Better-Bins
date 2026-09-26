@@ -102,7 +102,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.21</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.22</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
@@ -552,7 +552,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.21.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.22.js');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
@@ -652,7 +652,11 @@ function goTo(i){
   tabAI.classList.toggle('active', i===1);
 }
 tabPG.addEventListener('click', ()=>goTo(0));
-tabAI.addEventListener('click', ()=>{goTo(1);if(window.g3dQwenPreload)window.g3dQwenPreload(document.getElementById('aiStatus'));});
+function warmQwen(){if(window.g3dQwenPreload)window.g3dQwenPreload(document.getElementById('aiStatus'));}
+tabAI.addEventListener('click', ()=>{goTo(1);warmQwen();});
+tabAI.addEventListener('pointerenter',warmQwen,{passive:true});
+tabAI.addEventListener('focus',warmQwen);
+tabAI.addEventListener('touchstart',warmQwen,{passive:true});
 
 const viewport = document.getElementById('viewport');
 let dragStartX=null, dragStartY=null, dragging=false, dragDX=0, lockedAxis=null;
