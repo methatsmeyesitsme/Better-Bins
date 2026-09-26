@@ -118,8 +118,6 @@ button:disabled{opacity:.5;cursor:default;}
 .infoGrid div span{display:block;color:var(--sub);font-size:.72rem;}
 </style>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-<script defer src="./g3d-auth-config.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="./g3d-auth.js"></script>
 <link rel="preconnect" href="https://huggingface.co" crossorigin>
 <link rel="dns-prefetch" href="//huggingface.co">
@@ -127,11 +125,11 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.31</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.32</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.31</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.32</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -165,7 +163,7 @@ button:disabled{opacity:.5;cursor:default;}
   <form id="authLoginForm"><div class="row single">
     <div><label for="loginEmail">Email</label><input id="loginEmail" type="email" required autocomplete="email"></div>
     <div><label for="loginPassword">Password</label><div class="passwordField"><input id="loginPassword" type="password" required autocomplete="current-password"><button class="passwordToggle" type="button" data-target="loginPassword" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.8"/></svg></button></div></div>
-  </div><button type="submit">Sign in</button><div class="authMsg" id="loginMsg"></div><button type="button" class="btn-secondary" id="forgotPasswordBtn" style="margin-top:8px;">Email me a password-reset link</button></form>
+  </div><button type="submit">Sign in</button><div class="authMsg" id="loginMsg"></div><button type="button" class="btn-secondary" id="forgotPasswordBtn" style="margin-top:8px;" disabled>Password reset unavailable in local mode</button></form>
   <form id="authSignupForm" style="display:none;"><div class="row single">
     <div><label for="signupUsername">Username</label><input id="signupUsername" type="text" required maxlength="40" autocomplete="username"></div>
     <div><label for="signupEmail">Email</label><input id="signupEmail" type="email" required autocomplete="email"></div>
@@ -255,7 +253,7 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.31</span></h1>
+  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.32</span></h1>
   <p class="sub">Internal design tool. Describe any 3D object in plain language. The selected local model plans the geometry, then G3D builds the actual custom mesh. Simple geometry bypasses the model for instant results.</p>
 
   <div class="card">
@@ -808,17 +806,14 @@ authSignupForm.addEventListener('submit',async e=>{
     signupMsg.textContent=(r&&r.session)?'Account created and signed in.':'Account created. Sign in with your email and password.';
   }catch(err){signupMsg.textContent=err.message||String(err);}
 });
-document.getElementById('forgotPasswordBtn').onclick=async()=>{
-  const email=document.getElementById('loginEmail').value.trim();if(!email){loginMsg.textContent='Enter your email first.';return;}
-  try{await window.g3dAuth.resetPassword(email);loginMsg.textContent='Password-reset email sent.';}catch(e){loginMsg.textContent=e.message||String(e);}
-};
+document.getElementById('forgotPasswordBtn').onclick=()=>{loginMsg.textContent='Password reset requires an email service; local accounts do not send email.'};
 
 function refreshAccountUi(){
   const u=window.g3dAuth&&window.g3dAuth.getUser&&window.g3dAuth.getUser(),name=authName(u);
-  accountBadge.textContent=u?name:'Guest';accountState.textContent=u?('Signed in as '+name+'. Your chats and artifacts can now be saved.'):((window.g3dAuth&&window.g3dAuth.configured)?'Not signed in. Chats and artifacts are not saved.':'Authentication backend is not connected yet. Chats and artifacts are not saved.');
+  accountBadge.textContent=u?name:'Guest';accountState.textContent=u?('Signed in as '+name+'. Your chats and artifacts can now be saved.'):((window.g3dAuth&&window.g3dAuth.configured)?'Not signed in. Chats and artifacts are not saved.':'Local account mode is active. Chats and artifacts are saved on this device only.');
   drawerAccountState.textContent=u?('Signed in as '+name+'. Chat history is saved.'): 'Guest: chats will not be saved.';
   authOpenBtn.style.display=u?'none':'block';authSignOutBtn.style.display=u?'block':'none';
-  authSetupHint.textContent=(!u && !(window.g3dAuth&&window.g3dAuth.configured))?'To activate accounts, put your Supabase public URL and anon/publishable key in g3d-auth-config.js, then enable email/password auth in Supabase.':'';
+  authSetupHint.textContent=(!u && !(window.g3dAuth&&window.g3dAuth.configured))?'Accounts work without Supabase. They are stored securely on this browser/device and are not synced to other devices.':'';
   const vault=window.g3dAuth&&window.g3dAuth.apiVaultStatus?window.g3dAuth.apiVaultStatus():{saved:false,unlocked:false};
   apiKeyStatus.textContent=!u?'Sign in to store an API key.':(vault.saved?(vault.unlocked?'Saved key is unlocked for this session.':'Saved key exists on this device. Enter your password and unlock it.'):'No API key saved for this account on this device.');
   renderChats();renderChat();loadUserArtifacts();
