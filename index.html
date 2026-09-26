@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>G3D Design Suite</title>
+<style>
+:root{
+  --bg:#f6f5f2; --panel:#ffffff; --text:#1c1b19; --sub:#6b6863; --line:#e3e0da;
+  --accent:#a8501f; --accent-ink:#ffffff; --field:#faf9f6;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#17130f; --panel:#211c17; --text:#f1ede6; --sub:#a89f92; --line:#3a332b;
+    --accent:#e07a3f; --accent-ink:#1c1408; --field:#2a241d;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#17130f; --panel:#211c17; --text:#f1ede6; --sub:#a89f92; --line:#3a332b;
+  --accent:#e07a3f; --accent-ink:#1c1408; --field:#2a241d;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;}
+.tabs{display:flex;gap:6px;justify-content:center;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;background:var(--bg);position:sticky;top:0;z-index:5;}
+.tab{padding:7px 16px;border-radius:20px;font-size:.82rem;font-weight:600;color:var(--sub);cursor:pointer;border:1px solid var(--line);background:var(--panel);}
+.tab.active{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);}
+.viewport{width:100%;height:calc(100% - 46px);overflow:hidden;position:relative;}
+.track{display:flex;width:200%;height:100%;transition:transform .22s ease;}
+.view{width:50%;height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.wrap{max-width:640px;margin:0 auto;padding:12px 20px 60px;}
+h1{font-size:1.25rem;margin:0 0 4px;}
+.sub{color:var(--sub);font-size:.88rem;margin:0 0 20px;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px;}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.row.single{grid-template-columns:1fr;}
+label{display:block;font-size:.78rem;color:var(--sub);margin-bottom:5px;}
+select,input[type=number],input[type=text],textarea{
+  width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--line);
+  background:var(--field);color:var(--text);font-size:.92rem;font-family:inherit;
+}
+textarea{resize:vertical;min-height:80px;}
+.checkrow{display:flex;align-items:center;gap:8px;margin:4px 0 14px;}
+.checkrow input{width:16px;height:16px;}
+.checkrow label{margin:0;color:var(--text);font-size:.88rem;}
+button{
+  width:100%;padding:13px;border:none;border-radius:10px;background:var(--accent);color:var(--accent-ink);
+  font-size:.95rem;font-weight:600;cursor:pointer;
+}
+button:disabled{opacity:.5;cursor:default;}
+.btn-secondary{background:var(--field);color:var(--text);border:1px solid var(--line);}
+.status{margin-top:12px;font-size:.83rem;color:var(--sub);white-space:pre-line;min-height:1.2em;}
+.hint{font-size:.76rem;color:var(--sub);margin-top:-6px;margin-bottom:12px;}
+.sectitle{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--sub);margin:0 0 10px;}
+.infoGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:.85rem;}
+.infoGrid div span{display:block;color:var(--sub);font-size:.72rem;}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<div class="tabs">
+  <div class="tab active" id="tabPG">Pattern Generator</div>
+  <div class="tab" id="tabAI">G3D AI</div>
+</div>
+<div class="viewport" id="viewport">
+<div class="track" id="track">
+
+<div class="view" id="view-pg"><div class="wrap">
+  <h1>TPMS Infill STL Generator</h1>
+  <p class="sub">Pick a shape, set your dimensions, choose an infill pattern, and download a printable STL.</p>
+
+  <div class="card">
+    <p class="sectitle">Shape</p>
+    <div class="row single">
+      <div>
+        <label for="shape">Shape</label>
+        <select id="shape">
+          <option value="cube">Square / Cube</option>
+          <option value="sphere">Ball / Sphere</option>
+          <option value="cylinder">Cylinder</option>
+          <option value="ring">Ring / Torus</option>
+        </select>
+      </div>
+    </div>
+    <div id="shapeParams"></div>
+  </div>
+
+  <div class="card">
+    <p class="sectitle">Infill</p>
+    <div class="row">
+      <div>
+        <label for="pattern">Infill pattern</label>
+        <select id="pattern">
+          <option value="gyroid">Gyroid</option>
+          <option value="schwarzp">Schwarz P (boxy)</option>
+          <option value="diamond">Diamond</option>
+        </select>
+      </div>
+      <div>
+        <label for="quality">Mesh quality</label>
+        <select id="quality">
+          <option value="32">Draft (fast)</option>
+          <option value="44" selected>Normal</option>
+          <option value="60">Fine (slow)</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="periods">Wave density (periods)</label>
+        <input type="number" id="periods" value="2.5" step="0.1" min="1">
+      </div>
+      <div>
+        <label for="thickness">Shell thickness (mm)</label>
+        <input type="number" id="thickness" value="1.5" step="0.1" min="0.4">
+      </div>
+    </div>
+    <p class="hint">Defaults: 2.5 periods, 1.5mm walls. Lower thickness / fewer periods = faster print.</p>
+  </div>
+
+  <div class="card">
+    <p class="sectitle">Name</p>
+    <div class="row single" style="grid-template-columns:1fr auto;align-items:end;">
+      <div><label for="customName">File name</label><input type="text" id="customName"></div>
+      <div><button id="reroll" type="button" style="width:auto;padding:9px 14px;">🎲</button></div>
+    </div>
+  </div>
+
+  <button id="genBtn">Generate preview</button>
+  <div class="status" id="status"></div>
+
+  <div class="card" id="previewCard" style="display:none;">
+    <p class="sectitle">Preview</p>
+    <div id="previewWrap" style="width:100%;height:320px;border-radius:10px;overflow:hidden;background:var(--field);touch-action:none;"></div>
+    <div class="checkrow" style="margin-top:10px;"><input type="checkbox" id="wireToggle" checked><label for="wireToggle">Show wireframe</label></div>
+    <p class="hint" style="margin:0;">Drag to rotate, scroll or pinch to zoom.</p>
+  </div>
+
+  <button id="dlBtn" class="btn-secondary" style="margin-top:12px;" disabled>Download STL</button>
+</div></div>
+
+<div class="view" id="view-ai"><div class="wrap">
+  <h1>G3D AI</h1>
+  <p class="sub">Internal design tool. Describe a part in plain language — a local parser turns it into a geometry spec, then the same real geometry engine builds it. No API key, nothing leaves this page.</p>
+
+  <div class="card">
+    <p class="sectitle">Describe the part</p>
+    <textarea id="aiPrompt" placeholder="Describe the 3D model you want... e.g. &quot;Make me a 40mm cube with a gyroid lattice and thick outer walls.&quot;"></textarea>
+    <p class="hint" style="margin-top:8px;margin-bottom:0;">Claude reads your request and converts it into the geometry spec (a live AI call on your account — one consent prompt the first time). Falls back to a basic built-in parser if AI access isn't available.</p>
+  </div>
+
+  <button id="aiGenBtn">GENERATE STL</button>
+  <div style="height:8px;"></div>
+  <button id="aiNewBtn" class="btn-secondary">Start new design</button>
+  <div class="status" id="aiStatus"></div>
+
+  <div class="card" id="aiPreviewCard" style="display:none;">
+    <p class="sectitle">Preview</p>
+    <div id="aiPreviewWrap" style="width:100%;height:320px;border-radius:10px;overflow:hidden;background:var(--field);touch-action:none;"></div>
+    <div class="checkrow" style="margin-top:10px;"><input type="checkbox" id="aiWireToggle" checked><label for="aiWireToggle">Show wireframe</label></div>
+    <p class="hint" style="margin:0;">Drag to rotate, scroll or pinch to zoom.</p>
+  </div>
+
+  <div class="card" id="aiInfoCard" style="display:none;">
+    <p class="sectitle">Model info</p>
+    <div class="infoGrid" id="aiInfoGrid"></div>
+  </div>
+
+  <button id="aiDlBtn" class="btn-secondary" style="margin-top:12px;" disabled>DOWNLOAD STL</button>
+</div></div>
+
+</div>
+</div>
+
+<script>
+// ================= Shared geometry engine =================
+function roundedBox(x,y,z,hx,hy,hz,r){
+  const qx=Math.abs(x)-hx, qy=Math.abs(y)-hy, qz=Math.abs(z)-hz;
+  const ax=Math.max(qx,0), ay=Math.max(qy,0), az=Math.max(qz,0);
+  const outside=Math.hypot(ax,ay,az);
+  const inside=Math.min(Math.max(qx,Math.max(qy,qz)),0);
+  return outside+inside-r;
+}
+function sphereSDF(x,y,z,R){ return Math.hypot(x,y,z)-R; }
+function cylinderSDF(x,y,z,R,halfH,r){
+  const dxy=Math.hypot(x,y)-(R-r);
+  const dz=Math.abs(z)-(halfH-r);
+  const ax=Math.max(dxy,0), az=Math.max(dz,0);
+  const outside=Math.hypot(ax,az);
+  const inside=Math.min(Math.max(dxy,dz),0);
+  return outside+inside-r;
+}
+function torusSDF(x,y,z,Rm,rm){
+  const qx=Math.hypot(x,y)-Rm;
+  return Math.hypot(qx,z)-rm;
+}
+function gyroid(x,y,z,k){ return Math.sin(k*x)*Math.cos(k*y)+Math.sin(k*y)*Math.cos(k*z)+Math.sin(k*z)*Math.cos(k*x); }
+function schwarzP(x,y,z,k){ return Math.cos(k*x)+Math.cos(k*y)+Math.cos(k*z); }
+function diamond(x,y,z,k){
+  return Math.sin(k*x)*Math.sin(k*y)*Math.sin(k*z)+Math.sin(k*x)*Math.cos(k*y)*Math.cos(k*z)
+       + Math.cos(k*x)*Math.sin(k*y)*Math.cos(k*z)+Math.cos(k*x)*Math.cos(k*y)*Math.sin(k*z);
+}
+const patternFns = {gyroid, schwarzp: schwarzP, diamond};
+
+function makeSolidSDF(cfg){
+  const cr = cfg.rounded ? cfg.cornerRadius : 0;
+  if(cfg.shape==='cube'){
+    const h = cfg.size/2;
+    return {sdf:(x,y,z)=>roundedBox(x,y,z,h-cr,h-cr,h-cr,cr), span:cfg.size, bmin:[-(h+1),-(h+1),-(h+1)], bmax:[h+1,h+1,h+1]};
+  } else if(cfg.shape==='sphere'){
+    const R=cfg.diameter/2;
+    return {sdf:(x,y,z)=>sphereSDF(x,y,z,R), span:cfg.diameter, bmin:[-(R+1),-(R+1),-(R+1)], bmax:[R+1,R+1,R+1]};
+  } else if(cfg.shape==='cylinder'){
+    const R=cfg.diameter/2, halfH=cfg.height/2;
+    return {sdf:(x,y,z)=>cylinderSDF(x,y,z,R,halfH,cr), span:Math.max(cfg.diameter,cfg.height), bmin:[-(R+1),-(R+1),-(halfH+1)], bmax:[R+1,R+1,halfH+1]};
+  } else {
+    const Rm=(cfg.outerDiameter-cfg.tubeDiameter)/2, rm=cfg.tubeDiameter/2;
+    return {sdf:(x,y,z)=>torusSDF(x,y,z,Rm,rm), span:cfg.outerDiameter, bmin:[-(cfg.outerDiameter/2+1),-(cfg.outerDiameter/2+1),-(rm+1)], bmax:[cfg.outerDiameter/2+1,cfg.outerDiameter/2+1,rm+1]};
+  }
+}
+function buildFieldAndBounds(spec){
+  const patternFn = patternFns[spec.pattern] || gyroid;
+  let solid, span, bmin, bmax;
+  if(spec.primary){
+    const A = makeSolidSDF(spec.primary);
+    span = A.span; bmin=A.bmin.slice(); bmax=A.bmax.slice();
+    if(spec.secondary){
+      const B = makeSolidSDF(spec.secondary);
+      bmin = bmin.map((v,i)=>Math.min(v,B.bmin[i]));
+      bmax = bmax.map((v,i)=>Math.max(v,B.bmax[i]));
+      if(spec.secondary.op==='subtract') solid=(x,y,z)=>Math.max(A.sdf(x,y,z), -B.sdf(x,y,z));
+      else solid=(x,y,z)=>Math.min(A.sdf(x,y,z), B.sdf(x,y,z));
+    } else solid = A.sdf;
+  } else {
+    const A = makeSolidSDF(spec);
+    solid=A.sdf; span=A.span; bmin=A.bmin; bmax=A.bmax;
+  }
+  const k = 2*Math.PI*spec.periods/span;
+  const field = (x,y,z)=>{
+    const F = patternFn(x,y,z,k);
+    const shell = Math.abs(F) - (k*spec.thickness/2);
+    return Math.max(shell, solid(x,y,z));
+  };
+  return {field,bmin,bmax};
+}
+
+// ---- Marching tetrahedra ----
+function addTri(tris,a,b,c,dir){
+  let ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2];
+  let vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
+  let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+  if(nx*dir[0]+ny*dir[1]+nz*dir[2] < 0){ const t=b; b=c; c=t; nx=-nx; ny=-ny; nz=-nz; }
+  const len = Math.hypot(nx,ny,nz)||1;
+  tris.push({a,b,c,n:[nx/len,ny/len,nz/len]});
+}
+function interp(p0,p1,f0,f1){
+  const t = f0/(f0-f1);
+  return [p0[0]+(p1[0]-p0[0])*t, p0[1]+(p1[1]-p0[1])*t, p0[2]+(p1[2]-p0[2])*t];
+}
+function avg(pts,idxs){
+  let sx=0,sy=0,sz=0;
+  idxs.forEach(i=>{sx+=pts[i][0];sy+=pts[i][1];sz+=pts[i][2];});
+  const n=idxs.length;
+  return [sx/n,sy/n,sz/n];
+}
+function processTet(pts,vals,tris){
+  const inside = vals.map(v=>v<0);
+  const insideIdx=[], outsideIdx=[];
+  for(let i=0;i<4;i++) (inside[i]?insideIdx:outsideIdx).push(i);
+  const cnt = insideIdx.length;
+  if(cnt===0||cnt===4) return;
+  const ic = avg(pts, insideIdx.length? insideIdx : [0]);
+  const oc = avg(pts, outsideIdx.length? outsideIdx : [0]);
+  const dir = [oc[0]-ic[0], oc[1]-ic[1], oc[2]-ic[2]];
+  if(cnt===1 || cnt===3){
+    const lone = cnt===1 ? insideIdx[0] : outsideIdx[0];
+    const others = [0,1,2,3].filter(i=>i!==lone);
+    const a = interp(pts[lone],pts[others[0]],vals[lone],vals[others[0]]);
+    const b = interp(pts[lone],pts[others[1]],vals[lone],vals[others[1]]);
+    const c = interp(pts[lone],pts[others[2]],vals[lone],vals[others[2]]);
+    addTri(tris,a,b,c,dir);
+  } else {
+    const i0=insideIdx[0], i1=insideIdx[1], o0=outsideIdx[0], o1=outsideIdx[1];
+    const p00=interp(pts[i0],pts[o0],vals[i0],vals[o0]);
+    const p01=interp(pts[i0],pts[o1],vals[i0],vals[o1]);
+    const p10=interp(pts[i1],pts[o0],vals[i1],vals[o0]);
+    const p11=interp(pts[i1],pts[o1],vals[i1],vals[o1]);
+    addTri(tris,p00,p01,p11,dir);
+    addTri(tris,p00,p11,p10,dir);
+  }
+}
+const tetIdx=[[0,5,1,6],[0,1,2,6],[0,2,3,6],[0,3,7,6],[0,7,4,6],[0,4,5,6]];
+const cubeOff=[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
+function generateMesh(fieldFn, res, bmin, bmax){
+  const N = res+1;
+  const dx=(bmax[0]-bmin[0])/res, dy=(bmax[1]-bmin[1])/res, dz=(bmax[2]-bmin[2])/res;
+  const vals = new Float32Array(N*N*N);
+  for(let i=0;i<N;i++){
+    const x=bmin[0]+i*dx;
+    for(let j=0;j<N;j++){
+      const y=bmin[1]+j*dy;
+      for(let k=0;k<N;k++){
+        const z=bmin[2]+k*dz;
+        vals[(i*N+j)*N+k]=fieldFn(x,y,z);
+      }
+    }
+  }
+  function idx(i,j,k){return (i*N+j)*N+k;}
+  function pt(i,j,k){return [bmin[0]+i*dx, bmin[1]+j*dy, bmin[2]+k*dz];}
+  const tris=[];
+  for(let i=0;i<res;i++)for(let j=0;j<res;j++)for(let k=0;k<res;k++){
+    const cp=[],cv=[];
+    for(let c=0;c<8;c++){
+      const oi=i+cubeOff[c][0], oj=j+cubeOff[c][1], ok=k+cubeOff[c][2];
+      cp.push(pt(oi,oj,ok));
+      cv.push(vals[idx(oi,oj,ok)]);
+    }
+    for(let t=0;t<6;t++){
+      const ti=tetIdx[t];
+      processTet([cp[ti[0]],cp[ti[1]],cp[ti[2]],cp[ti[3]]],[cv[ti[0]],cv[ti[1]],cv[ti[2]],cv[ti[3]]],tris);
+    }
+  }
+  return tris;
+}
+function trisToSTL(tris){
+  const buf = new ArrayBuffer(84+50*tris.length);
+  const dv = new DataView(buf);
+  dv.setUint32(80, tris.length, true);
+  let off=84;
+  for(const t of tris){
+    dv.setFloat32(off,t.n[0],true); dv.setFloat32(off+4,t.n[1],true); dv.setFloat32(off+8,t.n[2],true); off+=12;
+    for(const v of [t.a,t.b,t.c]){
+      dv.setFloat32(off,v[0],true); dv.setFloat32(off+4,v[1],true); dv.setFloat32(off+8,v[2],true); off+=12;
+    }
+    dv.setUint16(off,0,true); off+=2;
+  }
+  return new Uint8Array(buf);
+}
+function meshStats(tris){
+  let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity,vol=0;
+  for(const t of tris){
+    for(const v of [t.a,t.b,t.c]){
+      if(v[0]<minX)minX=v[0]; if(v[0]>maxX)maxX=v[0];
+      if(v[1]<minY)minY=v[1]; if(v[1]>maxY)maxY=v[1];
+      if(v[2]<minZ)minZ=v[2]; if(v[2]>maxZ)maxZ=v[2];
+    }
+    const a=t.a,b=t.b,c=t.c;
+    vol += (a[0]*(b[1]*c[2]-b[2]*c[1]) - a[1]*(b[0]*c[2]-b[2]*c[0]) + a[2]*(b[0]*c[1]-b[1]*c[0]))/6;
+  }
+  return {x:maxX-minX, y:maxY-minY, z:maxZ-minZ, volume:Math.abs(vol)};
+}
+function downloadExtDataAsTxt(status, dlBtn, tris, filename, cb){
+  (async ()=>{
+    dlBtn.disabled = true;
+    status.textContent = 'Preparing file...';
+    try{
+      const stlBytes = trisToSTL(tris);
+      const downloads = await claude.use('downloads');
+      if(!downloads){ status.textContent = 'Downloads are not available in this view.'; dlBtn.disabled=false; return; }
+      const txtName = filename.replace(/\.stl$/i,'') + '.txt';
+      status.textContent = 'Waiting for download confirmation...';
+      await downloads.save({filename: txtName, data: stlBytes});
+      status.textContent = `Saved ${txtName} — rename the extension from .txt to .stl before opening it in your slicer.`;
+    } catch(err){
+      const code = err && err.code;
+      if(code==='declined') status.textContent = 'Download cancelled.';
+      else if(code==='too_large') status.textContent = 'File is too large to save here — try a lower mesh quality.';
+      else if(code==='rate_limited') status.textContent = 'Too many download prompts — wait a moment and try again.';
+      else status.textContent = 'Download failed: ' + (err && (err.message||code) || err);
+    }
+    dlBtn.disabled = false;
+    if(cb) cb();
+  })();
+}
+
+// ================= 3D viewer factory (one per view) =================
+function createViewer(wrapId, wireToggleId){
+  const wrapEl = document.getElementById(wrapId);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
+  const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  wrapEl.appendChild(renderer.domElement);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const d1 = new THREE.DirectionalLight(0xffffff, 0.8); d1.position.set(1,1,1); scene.add(d1);
+  const d2 = new THREE.DirectionalLight(0xffffff, 0.4); d2.position.set(-1,-0.5,-1); scene.add(d2);
+
+  const v = { scene, camera, renderer, meshObj:null, wrapEl,
+    spherical:{theta:0.9, phi:1.1, radius:120}, target:[0,0,0] };
+
+  function resize(){
+    if(!wrapEl.clientWidth || !wrapEl.clientHeight) return;
+    camera.aspect = wrapEl.clientWidth/wrapEl.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(wrapEl.clientWidth, wrapEl.clientHeight);
+  }
+  new ResizeObserver(resize).observe(wrapEl);
+
+  function updateCamera(){
+    const s=v.spherical;
+    camera.position.set(
+      v.target[0] + s.radius*Math.sin(s.phi)*Math.sin(s.theta),
+      v.target[1] + s.radius*Math.cos(s.phi),
+      v.target[2] + s.radius*Math.sin(s.phi)*Math.cos(s.theta)
+    );
+    camera.lookAt(v.target[0],v.target[1],v.target[2]);
+  }
+  v.updateCamera = updateCamera;
+
+  let dragging=false, lastX=0, lastY=0;
+  const dom = renderer.domElement;
+  dom.addEventListener('pointerdown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; dom.setPointerCapture(e.pointerId); });
+  dom.addEventListener('pointerup', ()=>dragging=false);
+  dom.addEventListener('pointerleave', ()=>dragging=false);
+  dom.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
+    v.spherical.theta -= dx*0.008;
+    v.spherical.phi = Math.min(Math.max(v.spherical.phi - dy*0.008, 0.15), Math.PI-0.15);
+    updateCamera();
+  });
+  dom.addEventListener('wheel', e=>{
+    e.preventDefault();
+    v.spherical.radius = Math.min(Math.max(v.spherical.radius * (1 + e.deltaY*0.001), 10), 2000);
+    updateCamera();
+  }, {passive:false});
+  let pinchDist=null;
+  dom.addEventListener('touchstart', e=>{ if(e.touches.length===2) pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); });
+  dom.addEventListener('touchmove', e=>{
+    if(e.touches.length===2){
+      const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+      if(pinchDist){ v.spherical.radius = Math.min(Math.max(v.spherical.radius*(pinchDist/d),10),2000); updateCamera(); }
+      pinchDist=d;
+    }
+  }, {passive:false});
+
+  function animate(){ requestAnimationFrame(animate); resize(); renderer.render(scene,camera); }
+  requestAnimationFrame(animate);
+
+  v.showMesh = function(tris){
+    if(v.meshObj){
+      scene.remove(v.meshObj);
+      v.meshObj.geometry.dispose(); v.meshObj.material.dispose();
+      v.meshObj.children.forEach(c=>{ c.geometry.dispose(); c.material.dispose(); });
+    }
+    const positions = new Float32Array(tris.length*9);
+    tris.forEach((t,i)=>{
+      const o=i*9;
+      positions[o]=t.a[0]; positions[o+1]=t.a[1]; positions[o+2]=t.a[2];
+      positions[o+3]=t.b[0]; positions[o+4]=t.b[1]; positions[o+5]=t.b[2];
+      positions[o+6]=t.c[0]; positions[o+7]=t.c[1]; positions[o+8]=t.c[2];
+    });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    geo.computeVertexNormals();
+    geo.computeBoundingSphere();
+    const mat = new THREE.MeshStandardMaterial({color:0xa8501f, flatShading:true, side:THREE.DoubleSide, roughness:0.6, metalness:0.05});
+    const meshObj = new THREE.Mesh(geo, mat);
+    const wireGeo = new THREE.WireframeGeometry(geo);
+    const wireMat = new THREE.LineBasicMaterial({color:0x2a1608, transparent:true, opacity:0.35});
+    const wireLines = new THREE.LineSegments(wireGeo, wireMat);
+    wireLines.visible = document.getElementById(wireToggleId).checked;
+    meshObj.userData.wire = wireLines;
+    meshObj.add(wireLines);
+    scene.add(meshObj);
+    v.meshObj = meshObj;
+    const bs = geo.boundingSphere;
+    v.target = [bs.center.x, bs.center.y, bs.center.z];
+    v.spherical.radius = Math.max(bs.radius*2.6, 20);
+    resize();
+    updateCamera();
+  };
+  document.getElementById(wireToggleId).addEventListener('change', e=>{
+    if(v.meshObj && v.meshObj.userData.wire) v.meshObj.userData.wire.visible = e.target.checked;
+  });
+  return v;
+}
+
+function val(id){ return parseFloat(document.getElementById(id).value); }
+
+// ================= View 1: Pattern Generator (existing tool, unchanged behavior) =================
+const shapeParams = {
+  cube: [ {id:'size', label:'Size (mm)', def:50, step:1} ],
+  sphere: [ {id:'diameter', label:'Diameter (mm)', def:50, step:1} ],
+  cylinder: [ {id:'diameter', label:'Diameter (mm)', def:50, step:1}, {id:'height', label:'Height (mm)', def:50, step:1} ],
+  ring: [ {id:'outerDiameter', label:'Outer diameter (mm)', def:60, step:1}, {id:'tubeDiameter', label:'Tube diameter (mm)', def:16, step:1} ]
+};
+const roundableShapes = {cube:true, cylinder:true, sphere:false, ring:false};
+const shapeSel = document.getElementById('shape');
+const paramsDiv = document.getElementById('shapeParams');
+
+function renderParams(){
+  const shape = shapeSel.value;
+  const fields = shapeParams[shape];
+  let html = '<div class="row">';
+  fields.forEach((f,i)=>{
+    html += `<div><label for="p_${f.id}">${f.label}</label><input type="number" id="p_${f.id}" value="${f.def}" step="${f.step}" min="1"></div>`;
+    if(i%2===1) html += '</div><div class="row">';
+  });
+  html += '</div>';
+  if(roundableShapes[shape]){
+    html += `<div class="checkrow"><input type="checkbox" id="rounded" checked><label for="rounded">Rounded edges/corners</label></div>
+    <div class="row single" id="cornerRow"><div><label for="cornerRadius">Corner radius (mm)</label><input type="number" id="cornerRadius" value="5" step="0.5" min="0.5"></div></div>`;
+  }
+  paramsDiv.innerHTML = html;
+  const rc = document.getElementById('rounded');
+  if(rc){
+    const cornerRow = document.getElementById('cornerRow');
+    rc.addEventListener('change', ()=>{ cornerRow.style.display = rc.checked ? '' : 'none'; });
+  }
+}
+shapeSel.addEventListener('change', ()=>{ renderParams(); rerollName(); });
+renderParams();
+
+const adjectives = ['Wavy','Squishy','Nimble','Cosmic','Mellow','Lattice','Foggy','Velvet','Spry','Orbit','Amber','Drift','Cloudy','Ripple','Puffy','Quiet'];
+const nouns = ['Pebble','Nook','Puff','Knot','Wisp','Cell','Bloom','Loop','Fold','Spark','Dune','Hive','Nest','Wave','Burrow','Drop'];
+function rerollName(){
+  const shape = shapeSel.value;
+  const a = adjectives[Math.floor(Math.random()*adjectives.length)];
+  const n = nouns[Math.floor(Math.random()*nouns.length)];
+  document.getElementById('customName').value = `${a}${n}-${shape}`;
+}
+document.getElementById('reroll').addEventListener('click', rerollName);
+document.getElementById('pattern').addEventListener('change', rerollName);
+rerollName();
+
+let viewerPG = null;
+let lastTrisPG = null, lastFilenamePG = 'model.stl';
+
+async function generatePG(){
+  const btn = document.getElementById('genBtn');
+  const dlBtn = document.getElementById('dlBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true; dlBtn.disabled = true;
+  status.textContent = 'Building geometry...';
+  await new Promise(r=>setTimeout(r,30));
+  try{
+    const shape = shapeSel.value;
+    const roundedEl = document.getElementById('rounded');
+    const spec = {
+      shape,
+      size: shape==='cube'?val('p_size'):undefined,
+      diameter: (shape==='sphere'||shape==='cylinder')?val('p_diameter'):undefined,
+      height: shape==='cylinder'?val('p_height'):undefined,
+      outerDiameter: shape==='ring'?val('p_outerDiameter'):undefined,
+      tubeDiameter: shape==='ring'?val('p_tubeDiameter'):undefined,
+      pattern: document.getElementById('pattern').value,
+      periods: val('periods'),
+      thickness: val('thickness'),
+      rounded: roundedEl ? roundedEl.checked : false,
+      cornerRadius: roundedEl ? val('cornerRadius') : 0
+    };
+    const res = parseInt(document.getElementById('quality').value,10);
+    const {field,bmin,bmax} = buildFieldAndBounds(spec);
+    status.textContent = 'Meshing (this can take a few seconds)...';
+    await new Promise(r=>setTimeout(r,30));
+    const tris = generateMesh(field, res, bmin, bmax);
+    if(tris.length===0){
+      status.textContent = 'No surface found — try increasing wave density or checking dimensions.';
+      btn.disabled=false; return;
+    }
+    lastTrisPG = tris;
+    let nameVal = document.getElementById('customName').value.trim();
+    if(!nameVal) nameVal = `${shape}_${spec.pattern}_infill`;
+    lastFilenamePG = nameVal.replace(/\.stl$/i,'') + '.stl';
+    if(!viewerPG) viewerPG = createViewer('previewWrap','wireToggle');
+    document.getElementById('previewCard').style.display='';
+    viewerPG.showMesh(tris);
+    status.textContent = `Generated ${tris.length.toLocaleString()} triangles. Rotate/zoom the preview, then download when ready.`;
+    dlBtn.disabled = false;
+  } catch(err){
+    status.textContent = 'Error: ' + err.message;
+  }
+  btn.disabled = false;
+}
+document.getElementById('genBtn').addEventListener('click', generatePG);
+document.getElementById('dlBtn').addEventListener('click', ()=>{
+  downloadExtDataAsTxt(document.getElementById('status'), document.getElementById('dlBtn'), lastTrisPG, lastFilenamePG);
+});
+
+// ================= View 2: G3D AI (natural-language -> spec -> geometry) =================
+function clamp(v,lo,hi){ return Math.min(hi, Math.max(lo, v)); }
+function defaultSpec(){
+  return {
+    primary: { shape:'cube', size:40, diameter:40, height:40, outerDiameter:50, tubeDiameter:14, rounded:true, cornerRadius:5 },
+    secondary: null,
+    pattern:'gyroid', periods:2.5, thickness:1.5, quality:44
+  };
+}
+function normalizeSpec(spec){
+  const P = spec.primary;
+  P.size = clamp(P.size, 10, 200); P.diameter = clamp(P.diameter, 10, 200); P.height = clamp(P.height, 10, 200);
+  P.outerDiameter = clamp(P.outerDiameter, 15, 200);
+  P.tubeDiameter = clamp(P.tubeDiameter, 4, P.outerDiameter/2 - 2);
+  P.cornerRadius = clamp(P.cornerRadius, 0.5, Math.min(P.size,P.diameter,P.tubeDiameter)/3 || 5);
+  if(spec.secondary){
+    const S = spec.secondary;
+    S.size = clamp(S.size||20, 5, 300); S.diameter = clamp(S.diameter||20, 5, 300); S.height = clamp(S.height||40, 5, 400);
+    S.outerDiameter = clamp(S.outerDiameter||30, 8, 300);
+    S.tubeDiameter = clamp(S.tubeDiameter||8, 3, S.outerDiameter/2 - 2);
+    if(S.op!=='union' && S.op!=='subtract') S.op='subtract';
+  }
+  spec.thickness = clamp(spec.thickness, 0.4, 6);
+  spec.periods = clamp(spec.periods, 1, 8);
+  spec.quality = spec.quality || 44;
+  return spec;
+}
+function detectShapeWord(t){
+  if(/\b(sphere|ball)\b/.test(t)) return 'sphere';
+  if(/\b(cylinder|tube)\b/.test(t)) return 'cylinder';
+  if(/\b(ring|torus|donut|doughnut)\b/.test(t)) return 'ring';
+  if(/\b(cube|square|box)\b/.test(t)) return 'cube';
+  return null;
+}
+function applyShapeAndSize(target, text){
+  const s = detectShapeWord(text);
+  if(s) target.shape = s;
+  const num = text.match(/(\d+(\.\d+)?)\s*mm/);
+  if(num){
+    const v = parseFloat(num[1]);
+    if(target.shape==='cube') target.size=v;
+    else if(target.shape==='sphere') target.diameter=v;
+    else if(target.shape==='cylinder'){ target.diameter=v; target.height=v; }
+    else { target.outerDiameter=v; target.tubeDiameter=Math.max(6, v*0.28); }
+  }
+  return num;
+}
+function parsePrompt(text, prev){
+  const t = ' '+text.toLowerCase()+' ';
+  const spec = prev ? JSON.parse(JSON.stringify(prev)) : defaultSpec();
+  let notes = [];
+
+  const opMatch = t.match(/^(.*?)\b(with an? (?:hole|opening)|hole (?:through|drilled through)|minus an?|subtract(?:ing)? an?|combined with an?|fused with an?|union(?:ed)? with an?|plus an?)\b(.*)$/);
+  let primaryText = t, secondaryText = null, op = null;
+  if(opMatch){
+    primaryText = opMatch[1];
+    op = /hole|minus|subtract/.test(opMatch[2]) ? 'subtract' : 'union';
+    secondaryText = opMatch[3];
+  }
+
+  applyShapeAndSize(spec.primary, primaryText);
+  if(/\b(pyramid|honeycomb lattice shape|custom shape)\b/.test(primaryText))
+    notes.push(`That shape isn't in the geometry engine yet — using ${spec.primary.shape} instead.`);
+
+  if(op){
+    const base = spec.primary.size || spec.primary.diameter || spec.primary.outerDiameter || 40;
+    if(!spec.secondary) spec.secondary = {shape:'cylinder', diameter:base*0.4, height:base*2, outerDiameter:base*0.6, tubeDiameter:base*0.15, size:base*0.5, rounded:false, cornerRadius:0, op};
+    spec.secondary.op = op;
+    const gotNum = applyShapeAndSize(spec.secondary, secondaryText);
+    if(op==='subtract' && spec.secondary.shape==='cylinder' && !gotNum){
+      spec.secondary.diameter = base*0.4;
+      spec.secondary.height = base*2;
+    }
+  } else if(/\bno (hole|combination)\b|remove the (hole|combination)/.test(t)){
+    spec.secondary = null;
+  }
+
+  if(/\bgyroid\b/.test(t)) spec.pattern='gyroid';
+  else if(/schwarz|boxy/.test(t)) spec.pattern='schwarzp';
+  else if(/diamond/.test(t)) spec.pattern='diamond';
+  else if(/honeycomb|hex(agon)?/.test(t)) notes.push(`Honeycomb lattice isn't implemented yet — using ${spec.pattern} instead.`);
+
+  const wallNum = t.match(/(\d+(\.\d+)?)\s*mm\s*(wall|thick)/);
+  if(wallNum) spec.thickness = parseFloat(wallNum[1]);
+  else if(/thick(er)?[\s\w]*(wall|shell|lattice)|make[\s\w]*thicker/.test(t)) spec.thickness = spec.thickness*1.4;
+  else if(/thin(ner)?[\s\w]*(wall|shell|lattice)/.test(t)) spec.thickness = spec.thickness*0.7;
+
+  if(/denser|more waves|finer/.test(t)) spec.periods = spec.periods*1.3;
+  if(/sparse|fewer waves|coarser/.test(t)) spec.periods = spec.periods*0.75;
+
+  if(/no round|sharp corner|square corner/.test(t)) spec.primary.rounded=false;
+  else if(/round(ed)?( corner| edge)?/.test(t)) spec.primary.rounded=true;
+
+  const P = spec.primary;
+  if(!P.size) P.size = 40;
+  return {spec: normalizeSpec(spec), notes};
+}
+
+const SHAPES = ['cube','sphere','cylinder','ring'];
+function isFiniteNum(v){ return typeof v==='number' && isFinite(v); }
+function mergeShapeCfg(raw, base){
+  const out = {...base};
+  if(raw && typeof raw==='object'){
+    if(SHAPES.includes(raw.shape)) out.shape = raw.shape;
+    ['size','diameter','height','outerDiameter','tubeDiameter','cornerRadius'].forEach(k=>{
+      if(isFiniteNum(raw[k])) out[k] = raw[k];
+    });
+    if(typeof raw.rounded==='boolean') out.rounded = raw.rounded;
+  }
+  return out;
+}
+function mergeAISpec(raw, prev){
+  const base = prev ? JSON.parse(JSON.stringify(prev)) : defaultSpec();
+  if(!raw || typeof raw!=='object') return base;
+  const out = {...base};
+  out.primary = mergeShapeCfg(raw.primary, base.primary);
+  if(raw.secondary===null) out.secondary = null;
+  else if(raw.secondary && typeof raw.secondary==='object'){
+    const secBase = base.secondary || {shape:'cylinder', diameter:20, height:80, size:20, outerDiameter:30, tubeDiameter:8, rounded:false, cornerRadius:0, op:'subtract'};
+    const merged = mergeShapeCfg(raw.secondary, secBase);
+    merged.op = (raw.secondary.op==='union'||raw.secondary.op==='subtract') ? raw.secondary.op : (secBase.op||'subtract');
+    out.secondary = merged;
+  }
+  if(patternFns[raw.pattern]) out.pattern = raw.pattern;
+  if(isFiniteNum(raw.periods)) out.periods = raw.periods;
+  if(isFiniteNum(raw.thickness)) out.thickness = raw.thickness;
+  out.quality = base.quality || 44;
+  return normalizeSpec(out);
+}
+function buildAIPrompt(prevSpec, userText){
+  const stateJson = JSON.stringify(prevSpec || defaultSpec());
+  return `You are a geometry-spec generator for a 3D-printing design tool. Convert the user's request into ONLY a JSON object matching this exact schema — no explanation, no markdown fence, just the JSON:
+
+{
+  "primary": {"shape": "cube"|"sphere"|"cylinder"|"ring", "size": number (mm, cube edge), "diameter": number (mm, sphere/cylinder diameter), "height": number (mm, cylinder height), "outerDiameter": number (mm, ring outer diameter), "tubeDiameter": number (mm, ring tube diameter), "rounded": boolean, "cornerRadius": number (mm)},
+  "secondary": null | {"shape": "cube"|"sphere"|"cylinder"|"ring", "size":..., "diameter":..., "height":..., "outerDiameter":..., "tubeDiameter":..., "op": "union"|"subtract"},
+  "pattern": "gyroid"|"schwarzp"|"diamond",
+  "periods": number (1 to 8, infill wave density),
+  "thickness": number (mm, 0.4 to 6, infill shell wall thickness)
+}
+
+Rules:
+- Only cube, sphere, cylinder, ring are valid shapes in this engine. If the user names something else (pyramid, honeycomb, a custom mesh, a character, an animal, anything not in that list), pick the closest of these four for "primary" — do not invent a new shape value.
+- "secondary" is ONLY for a hole cut through the primary shape (op:"subtract") or a second shape fused to it (op:"union"), both centered on the same origin/axis as the primary. Leave it null unless the user clearly asked for a hole or a combination of two shapes.
+- This is one step in an ongoing conversation. The design's current state is:
+${stateJson}
+- If the user's new message only changes one thing ("make it 50mm instead", "thicker lattice", "add a hole", "remove the hole"), copy every other field from the current state above unchanged and only change what they asked for.
+- If the message describes a whole new design, replace fields as needed but still fill in every required field with a sensible number.
+- Every numeric field must be a plain positive number, no units, no strings.
+
+User's request: "${userText.replace(/"/g,"'")}"
+
+Reply with ONLY the JSON object, nothing else.`;
+}
+
+let aiPrevSpec = null;
+let viewerAI = null;
+let lastTrisAI = null, lastFilenameAI = 'g3d_model.stl';
+
+function nameFromSpec(spec){
+  const P = spec.primary;
+  const shapeName = {cube:'Cube', sphere:'Sphere', cylinder:'Cylinder', ring:'Ring'}[P.shape] || 'Model';
+  const size = P.shape==='cube'?P.size : P.shape==='ring'?P.outerDiameter : P.diameter;
+  const suffix = spec.secondary ? (spec.secondary.op==='subtract' ? '_Holed' : '_Combo') : '';
+  return `G3D_Squish_${shapeName}${suffix}_${Math.round(size)}mm`;
+}
+
+async function generateAI(){
+  const btn = document.getElementById('aiGenBtn');
+  const dlBtn = document.getElementById('aiDlBtn');
+  const status = document.getElementById('aiStatus');
+  const promptEl = document.getElementById('aiPrompt');
+  const text = promptEl.value.trim();
+  if(!text){ status.textContent = 'Describe a part first.'; return; }
+  btn.disabled = true; dlBtn.disabled = true;
+  document.getElementById('aiInfoCard').style.display = 'none';
+
+  status.textContent = 'Understanding request...';
+  await new Promise(r=>setTimeout(r,60));
+
+  let spec = null, notes = [];
+  let usedAI = false;
+  try{
+    const sample = await claude.use('sample');
+    if(sample){
+      try{
+        const raw = await sample.json(buildAIPrompt(aiPrevSpec, text), {modelTier:'quick', cache:false});
+        spec = mergeAISpec(raw, aiPrevSpec);
+        usedAI = true;
+      } catch(sErr){
+        const code = sErr && sErr.code;
+        if(code==='not_granted') notes.push('AI access wasn\'t granted — used the built-in parser instead.');
+        else if(code==='rate_limited') notes.push('AI is rate-limited right now — used the built-in parser instead.');
+        else if(code==='sampling_disabled' || code==='not_declared' || code==='capability_disabled' || code==='capability_removed')
+          notes.push('AI interpretation isn\'t available on this account — used the built-in parser instead.');
+        else notes.push('AI call failed — used the built-in parser instead.');
+      }
+    } else {
+      notes.push('AI interpretation isn\'t available in this view — used the built-in parser instead.');
+    }
+  } catch(e){ /* claude.use itself never really throws, but be defensive */ }
+
+  if(!spec){
+    const r = parsePrompt(text, aiPrevSpec);
+    spec = r.spec;
+    notes = notes.concat(r.notes);
+  }
+
+  try{
+    status.textContent = 'Building geometry...';
+    await new Promise(r=>setTimeout(r,80));
+    const {field,bmin,bmax} = buildFieldAndBounds(spec);
+
+    status.textContent = 'Creating mesh...';
+    await new Promise(r=>setTimeout(r,80));
+    const tris = generateMesh(field, spec.quality, bmin, bmax);
+    if(tris.length===0){
+      status.textContent = 'No surface resulted from that spec — try adjusting density or dimensions.';
+      btn.disabled=false; return;
+    }
+
+    status.textContent = 'Preparing preview...';
+    await new Promise(r=>setTimeout(r,60));
+    aiPrevSpec = spec;
+    lastTrisAI = tris;
+    lastFilenameAI = nameFromSpec(spec).replace(/\s+/g,'_') + '.stl';
+
+    if(!viewerAI) viewerAI = createViewer('aiPreviewWrap','aiWireToggle');
+    document.getElementById('aiPreviewCard').style.display='';
+    viewerAI.showMesh(tris);
+
+    const stats = meshStats(tris);
+    const grid = document.getElementById('aiInfoGrid');
+    grid.innerHTML = `
+      <div><span>File name</span>${lastFilenameAI}</div>
+      <div><span>Triangles</span>${tris.length.toLocaleString()}</div>
+      <div><span>X dimension</span>${stats.x.toFixed(1)} mm</div>
+      <div><span>Y dimension</span>${stats.y.toFixed(1)} mm</div>
+      <div><span>Z dimension</span>${stats.z.toFixed(1)} mm</div>
+      <div><span>Approx. volume</span>${(stats.volume/1000).toFixed(2)} cm³</div>
+    `;
+    document.getElementById('aiInfoCard').style.display='';
+
+    let msg = (usedAI ? 'AI-interpreted. ' : '') + `Generated ${tris.length.toLocaleString()} triangles.`;
+    if(notes.length) msg += '\n' + notes.join(' ');
+    status.textContent = msg;
+    dlBtn.disabled = false;
+  } catch(err){
+    status.textContent = 'Error: ' + err.message;
+  }
+  btn.disabled = false;
+}
+document.getElementById('aiGenBtn').addEventListener('click', generateAI);
+document.getElementById('aiNewBtn').addEventListener('click', ()=>{
+  aiPrevSpec = null;
+  document.getElementById('aiPrompt').value = '';
+  document.getElementById('aiStatus').textContent = 'Started a new design — previous parameters cleared.';
+  document.getElementById('aiInfoCard').style.display='none';
+});
+document.getElementById('aiDlBtn').addEventListener('click', ()=>{
+  downloadExtDataAsTxt(document.getElementById('aiStatus'), document.getElementById('aiDlBtn'), lastTrisAI, lastFilenameAI);
+});
+
+// ================= Tab / swipe navigation =================
+const track = document.getElementById('track');
+const tabPG = document.getElementById('tabPG');
+const tabAI = document.getElementById('tabAI');
+let currentView = 0;
+function goTo(i){
+  currentView = i;
+  track.style.transform = `translateX(-${i*50}%)`;
+  tabPG.classList.toggle('active', i===0);
+  tabAI.classList.toggle('active', i===1);
+}
+tabPG.addEventListener('click', ()=>goTo(0));
+tabAI.addEventListener('click', ()=>goTo(1));
+
+const viewport = document.getElementById('viewport');
+let dragStartX=null, dragStartY=null, dragging=false, dragDX=0, lockedAxis=null;
+function isInteractive(el){
+  return el.closest('input,select,textarea,button,.checkrow,#previewWrap,#aiPreviewWrap,.tab');
+}
+viewport.addEventListener('pointerdown', e=>{
+  if(isInteractive(e.target)) return;
+  dragStartX=e.clientX; dragStartY=e.clientY; dragging=true; lockedAxis=null; dragDX=0;
+});
+viewport.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  const dx=e.clientX-dragStartX, dy=e.clientY-dragStartY;
+  if(!lockedAxis){
+    if(Math.abs(dx)<8 && Math.abs(dy)<8) return;
+    lockedAxis = Math.abs(dx)>Math.abs(dy) ? 'x' : 'y';
+  }
+  if(lockedAxis!=='x') return;
+  dragDX = dx;
+  const pct = clamp((-currentView*50) + (dx/viewport.clientWidth*50), -50, 0);
+  track.style.transition = 'none';
+  track.style.transform = `translateX(${pct}%)`;
+});
+function endDrag(){
+  if(!dragging) return;
+  dragging=false;
+  track.style.transition = '';
+  if(lockedAxis==='x'){
+    if(dragDX < -50) goTo(1);
+    else if(dragDX > 50) goTo(0);
+    else goTo(currentView);
+  }
+  lockedAxis=null;
+}
+viewport.addEventListener('pointerup', endDrag);
+viewport.addEventListener('pointercancel', endDrag);
+viewport.addEventListener('pointerleave', endDrag);
+</script>
+</body>
+</html>
