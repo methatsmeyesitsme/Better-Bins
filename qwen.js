@@ -1,5 +1,5 @@
 const MODEL="onnx-community/Qwen2.5-0.5B-Instruct";
-const WORKER_URL="./g3d-model-worker-v1.34.js";
+const WORKER_URL="./g3d-model-worker-v1.35.js";
 let worker=null,seq=0;
 const pending=new Map();
 const MODEL_PREF_KEY="g3d_ai_model_v1";
@@ -118,8 +118,17 @@ function setG3DModel(id){
   modelLoadStart(id);
   preloadQwen(document.getElementById("aiStatus"));
 }
+async function isModelRequest(text,prevSpec){
+  const s=String(text||"").toLowerCase().trim();
+  if(/\b(make|create|build|design|generate|model|mesh|stl|3d print|print this|prototype|part|shape|geometry|hollow|lattice|gyroid|phone stand|keychain)\b/i.test(s))return true;
+  return !!prevSpec && /\b(this|that|it|model|design)\b/i.test(s) && /\b(change|modify|edit|add|remove|move|rotate|resize|make it|turn it|taller|shorter|wider|narrower|thicker|thinner|bigger|smaller)\b/i.test(s);
+}
 async function qwenToSpec(prevSpec,userText,status,history){
-  const fast=fastPrimitiveSpec(userText,prevSpec);
+  const shouldBuild=isModelRequest(userText,prevSpec);
+  if(!shouldBuild){
+    if(status&&!shouldBuild)status.textContent=modelInfo().name+" is thinking…";
+  } else {
+    const fast=fastPrimitiveSpec(userText,prevSpec);
   if(fast){
     if(status)status.textContent="Building exact primitive locally…";
     return fast;
