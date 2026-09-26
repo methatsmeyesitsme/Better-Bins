@@ -156,7 +156,7 @@ async function qwenToSpec(prevSpec,userText,status,history){
     });
     try{
       ensureWorker().postMessage({
-        type:"respond",
+        type:"generate",
         id,
         modelId:selectedModelId,
         prevSpec:prevSpec||null,
