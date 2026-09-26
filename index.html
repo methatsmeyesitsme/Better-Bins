@@ -89,6 +89,7 @@ button{
   font-size:.95rem;font-weight:600;cursor:pointer;
 }
 button:disabled{opacity:.5;cursor:default;}
+.aiModelSelect{width:auto;max-width:230px;height:38px;padding:7px 30px 7px 11px;border-radius:11px;background:var(--panel);color:var(--text);border:1px solid var(--line);font-size:.75rem;font-weight:600}.compactTimer{margin:0!important;padding:7px 9px!important;white-space:nowrap}.compactTimer strong{font-size:.68rem}
 .authBox input[type=email],.authBox input[type=text],.authBox input[type=password],
 .settingsPanel input[type=email],.settingsPanel input[type=text],.settingsPanel input[type=password]{
   width:100%;height:48px;padding:12px 14px;border-radius:13px;border:1px solid var(--line);
@@ -140,7 +141,7 @@ button:disabled{opacity:.5;cursor:default;}
 @media(max-width:600px){
  .aiChatShell{min-height:calc(100vh - 90px)}
  .aiChatHeader{align-items:flex-start}
- .aiChatTools .modelTimer{display:none}
+ .aiChatTools .modelTimer{display:none}.aiModelSelect{max-width:165px}
  .aiChatHeader .modelSwitch{flex-wrap:wrap;justify-content:flex-end}
  .aiChatHeader .modelChoice{min-width:68px}
  .chatMsg.g3dBubble{max-width:91%}
@@ -164,17 +165,18 @@ button:disabled{opacity:.5;cursor:default;}
 </style>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <script defer src="./g3d-auth.js"></script>
+<script defer src="./g3d-cloud-v1.38.js"></script>
 <link rel="preconnect" href="https://huggingface.co" crossorigin>
 <link rel="dns-prefetch" href="//huggingface.co">
 <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.37</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.38</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.37</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.38</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -186,7 +188,7 @@ button:disabled{opacity:.5;cursor:default;}
     </div>
     <div class="settingsCard">
       <p class="sectitle">AI API key</p>
-      <p class="hint" style="margin:0 0 10px;">Add your own provider key. G3D encrypts the saved key on this device; it is not placed in the public site code.</p>
+      <p class="hint" style="margin:0 0 10px;">Add your own provider key. G3D encrypts the saved key on this device. When you use the cloud provider, the key is used directly by your browser for that provider request.</p>
       <div class="row">
         <div><label for="apiProvider">Provider</label><select id="apiProvider"><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="groq">Groq</option><option value="deepseek">DeepSeek</option><option value="custom">Custom</option></select></div>
         <div><label for="apiKeyInput">API key</label><input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste your key"></div>
@@ -301,19 +303,20 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.37</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.38</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
-        <div class="modelSwitch">
-          <button id="modelAI1" class="modelChoice active" type="button">AI 1<small>SmolLM2</small></button>
-          <button id="modelAI2" class="modelChoice" type="button">AI 2<small>Gemma</small></button>
-          <button id="modelAI3" class="modelChoice" type="button">AI 3<small>Qwen</small></button>
+        <div>
+          <label for="aiModelSelect" style="position:absolute;left:-9999px;">AI model</label>
+          <select id="aiModelSelect" class="aiModelSelect" aria-label="Choose AI model">
+            <option value="ai1">Local · SmolLM2 360M</option>
+            <option value="ai2">Local · Gemma 3 270M IT</option>
+            <option value="ai3">Local · Qwen2.5 0.5B</option>
+            <option value="cloud">My API provider</option>
+          </select>
         </div>
-        <div class="modelTimer" aria-live="polite">
-          <div><span>Load</span><strong id="modelLoadTimer">—</strong></div>
-          <div class="modelTimes" id="modelTimes">AI 1 — · AI 2 — · AI 3 —</div>
-        </div>
+        <div class="modelTimer compactTimer" aria-live="polite"><strong id="modelLoadTimer">Local ready</strong></div>
       </div>
     </div>
 
@@ -567,52 +570,34 @@ document.getElementById('dlBtn').addEventListener('click', ()=>{
 });
 
 
-// ================= AI model switch =================
-const modelAI1=document.getElementById('modelAI1'),modelAI2=document.getElementById('modelAI2'),modelAI3=document.getElementById('modelAI3');
-const modelHint=document.getElementById('modelHint'),modelLoadTimer=document.getElementById('modelLoadTimer'),modelTimesEl=document.getElementById('modelTimes');
-let stopwatchStart=0,stopwatchRunning=false,stopwatchRAF=0;
-const modelTimes=JSON.parse(localStorage.getItem('g3d_model_load_times_v1')||'{}');
-
-function formatLoadTime(ms){return Number.isFinite(ms)&&ms>0?(ms/1000).toFixed(2)+' s':'—';}
-function renderModelTimes(){
-  modelTimesEl.textContent='AI 1 '+formatLoadTime(modelTimes.ai1)+'  ·  AI 2 '+formatLoadTime(modelTimes.ai2)+'  ·  AI 3 '+formatLoadTime(modelTimes.ai3);
+// ================= AI model selection =================
+const aiModelSelect=document.getElementById('aiModelSelect');
+const modelLoadTimer=document.getElementById('modelLoadTimer');
+const BACKEND_KEY='g3d_ai_backend_v1';
+function loadSelectedBackend(){
+  let v='ai1';try{v=localStorage.getItem(BACKEND_KEY)||'ai1';}catch(e){}
+  if(!['ai1','ai2','ai3','cloud'].includes(v))v='ai1';
+  aiModelSelect.value=v;
 }
-function updateStopwatch(){
-  if(!stopwatchRunning)return;
-  modelLoadTimer.textContent=formatLoadTime(performance.now()-stopwatchStart);
-  stopwatchRAF=requestAnimationFrame(updateStopwatch);
-}
-function startModelStopwatch(info){
-  stopwatchStart=performance.now();stopwatchRunning=true;cancelAnimationFrame(stopwatchRAF);
-  modelLoadTimer.textContent='0.00 s';
-  modelHint.textContent=info.name+' loading…';
-  stopwatchRAF=requestAnimationFrame(updateStopwatch);
-}
-function stopModelStopwatch(info,elapsed){
-  stopwatchRunning=false;cancelAnimationFrame(stopwatchRAF);
-  const ms=Number(elapsed)>0?Number(elapsed):performance.now()-stopwatchStart;
-  modelTimes[info.id]=ms;
-  try{localStorage.setItem('g3d_model_load_times_v1',JSON.stringify(modelTimes));}catch(e){}
-  modelLoadTimer.textContent=formatLoadTime(ms);
-  modelHint.textContent=info.name+' loaded in '+formatLoadTime(ms)+'.';
-  renderModelTimes();
+function updateCloudLabel(){
+  const p=document.getElementById('apiProvider'),o=aiModelSelect&&aiModelSelect.querySelector('option[value="cloud"]');
+  if(!o)return;
+  const names={gemini:'Google Gemini',openai:'OpenAI',anthropic:'Anthropic',groq:'Groq',deepseek:'DeepSeek',custom:'Custom provider'};
+  o.textContent='My API · '+(names[p&&p.value]||'Provider');
 }
 function refreshAIModelUI(){
-  const info=window.g3dGetModelInfo?window.g3dGetModelInfo():{id:'ai1',name:'SmolLM2 360M',label:'AI 1 · SmolLM2 360M'};
-  const id=info.id||((info.label||'').indexOf('AI 2')===0?'ai2':(info.label||'').indexOf('AI 3')===0?'ai3':'ai1');
-  modelAI1.classList.toggle('active',id==='ai1');modelAI2.classList.toggle('active',id==='ai2');modelAI3.classList.toggle('active',id==='ai3');
-  modelHint.textContent=info.name+' selected. Simple shapes use the instant geometry path.';
-  renderModelTimes();
+  modelLoadTimer.textContent=aiModelSelect.value==='cloud'?'Uses Settings provider':(window.g3dGetModelInfo?window.g3dGetModelInfo().name+' ready':'Local ready');
 }
-modelAI1.addEventListener('click',()=>window.g3dSetModel&&window.g3dSetModel('ai1'));
-modelAI2.addEventListener('click',()=>window.g3dSetModel&&window.g3dSetModel('ai2'));
-modelAI3.addEventListener('click',()=>window.g3dSetModel&&window.g3dSetModel('ai3'));
-window.addEventListener('g3d-model-loading',e=>startModelStopwatch(e.detail||{name:'Model',id:'ai1'}));
-window.addEventListener('g3d-model-ready',e=>stopModelStopwatch(e.detail||{name:'Model',id:'ai1'},e.detail&&e.detail.elapsed));
+function setBackend(v){
+  try{localStorage.setItem(BACKEND_KEY,v);}catch(e){}
+  updateCloudLabel();refreshAIModelUI();
+  if(v!=='cloud'&&window.g3dSetModel)window.g3dSetModel(v);
+}
+loadSelectedBackend();updateCloudLabel();
+aiModelSelect.addEventListener('change',()=>setBackend(aiModelSelect.value));
+window.addEventListener('g3d-model-ready',refreshAIModelUI);
 window.addEventListener('g3d-model-change',refreshAIModelUI);
-refreshAIModelUI();
-renderModelTimes();
-
+window.addEventListener('g3d-provider-change',()=>{updateCloudLabel();refreshAIModelUI();});
 // ================= View 2: G3D AI (natural-language -> arbitrary geometry spec -> real mesh) =================
 function clamp(v,lo,hi){ return Math.min(hi,Math.max(lo,v)); }
 function defaultSpec(){
@@ -836,7 +821,13 @@ async function generateAI(){
   const active=getChat(),history=active&&Array.isArray(active.messages)?active.messages.slice(-7):[];
   try{
     status.textContent='Thinking…';
-    const raw=await window.g3dQwenToSpec(aiPrevSpec,text,status,history);
+    let raw;
+    if(aiModelSelect.value==='cloud'){
+      if(!window.g3dCloud)throw new Error('Cloud AI bridge is not loaded. Refresh the page and try again.');
+      raw=await window.g3dCloud.respond({prevSpec:aiPrevSpec,userText:text,history,status});
+    }else{
+      raw=await window.g3dQwenToSpec(aiPrevSpec,text,status,history);
+    }
     if(!raw||raw.mode!=='model'){
       const reply=raw&&raw.reply?raw.reply:'I’m here.';
       const x=getChat();
@@ -860,8 +851,8 @@ async function generateAI(){
       x.messages.push({role:'assistant',text:reply,time:Date.now(),result:{filename:lastFilenameAI,triangles:triCount,dimensions:meshStats(tris)}});
       x.updated=Date.now();saveChats();renderChats();renderChat();
     }
-    const stats=meshStats(tris),grid=document.getElementById('aiInfoGrid'),modelInfo=window.g3dGetModelInfo?window.g3dGetModelInfo():{name:'Local model'};
-    grid.innerHTML='<div><span>AI model</span>'+modelInfo.name+'</div><div><span>Geometry</span>'+spec.parts.length+' custom parts / CSG</div><div><span>File name</span>'+lastFilenameAI+'</div><div><span>Triangles</span>'+triCount.toLocaleString()+'</div><div><span>X dimension</span>'+stats.x.toFixed(1)+' mm</div><div><span>Y dimension</span>'+stats.y.toFixed(1)+' mm</div><div><span>Z dimension</span>'+stats.z.toFixed(1)+' mm</div><div><span>Approx. volume</span>'+(stats.volume/1000).toFixed(2)+' cm³</div>';
+    const stats=meshStats(tris),grid=document.getElementById('aiInfoGrid'),modelInfo=aiModelSelect.value==='cloud'?(window.g3dCloud.info?window.g3dCloud.info():{label:'Cloud provider'}):(window.g3dGetModelInfo?window.g3dGetModelInfo():{name:'Local model'});
+    grid.innerHTML='<div><span>AI model</span>'+esc(modelInfo.name||modelInfo.label||'Cloud provider')+'</div><div><span>Geometry</span>'+spec.parts.length+' custom parts / CSG</div><div><span>File name</span>'+lastFilenameAI+'</div><div><span>Triangles</span>'+triCount.toLocaleString()+'</div><div><span>X dimension</span>'+stats.x.toFixed(1)+' mm</div><div><span>Y dimension</span>'+stats.y.toFixed(1)+' mm</div><div><span>Z dimension</span>'+stats.z.toFixed(1)+' mm</div><div><span>Approx. volume</span>'+(stats.volume/1000).toFixed(2)+' cm³</div>';
     document.getElementById('aiInfoCard').style.display='';
     status.textContent='Model ready.'+(saved?' Saved to Artifacts.':' Sign in to save it to Artifacts.');
   }catch(err){
@@ -881,6 +872,8 @@ const authModal=document.getElementById('authModal'),authOpenBtn=document.getEle
 const accountState=document.getElementById('accountState'),drawerAccountState=document.getElementById('drawerAccountState'),accountBadge=document.getElementById('g3dAccountBadge');
 const authTabLogin=document.getElementById('authTabLogin'),authTabSignup=document.getElementById('authTabSignup'),authLoginForm=document.getElementById('authLoginForm'),authSignupForm=document.getElementById('authSignupForm'),loginMsg=document.getElementById('loginMsg'),signupMsg=document.getElementById('signupMsg'),authSetupHint=document.getElementById('authSetupHint');
 const apiProvider=document.getElementById('apiProvider'),apiKeyInput=document.getElementById('apiKeyInput'),apiPassword=document.getElementById('apiPassword'),saveApiKeyBtn=document.getElementById('saveApiKeyBtn'),unlockApiKeyBtn=document.getElementById('unlockApiKeyBtn'),clearApiKeyBtn=document.getElementById('clearApiKeyBtn'),apiKeyStatus=document.getElementById('apiKeyStatus');
+try{const savedProvider=localStorage.getItem('g3d_api_provider_v1');if(savedProvider&&apiProvider.querySelector('option[value="'+savedProvider+'"]'))apiProvider.value=savedProvider;}catch(e){}
+apiProvider.addEventListener('change',()=>{try{localStorage.setItem('g3d_api_provider_v1',apiProvider.value);}catch(e){};window.dispatchEvent(new CustomEvent('g3d-provider-change'));if(window.updateCloudLabel)window.updateCloudLabel();});
 
 function authName(u){return (u&&u.user_metadata&&u.user_metadata.username)||((u&&u.email||'').split('@')[0])||'Account';}
 function setAuthMode(mode){
