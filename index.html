@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>G3D Design Suite</title>
 <style>
+.authModal{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:60;display:none;align-items:center;justify-content:center;padding:20px}.authModal.open{display:flex}.authBox{width:min(430px,100%);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 12px 50px rgba(0,0,0,.2)}.authTabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px}.authTab{padding:10px;background:var(--field);color:var(--sub);border:1px solid var(--line);border-radius:10px}.authTab.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}.authMsg{font-size:.8rem;color:var(--sub);min-height:1.2em;white-space:pre-line;margin-top:9px}.g3dAccountBadge{font-size:.68rem;color:var(--sub);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 7px;white-space:nowrap}.accountActions{display:flex;gap:8px}.accountActions button{width:auto;flex:1}.keyRow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.keyActions{display:flex;gap:8px;margin-top:9px}.keyActions button{width:auto;flex:1}
 :root{
   --bg:#f6f5f2; --panel:#ffffff; --text:#1c1b19; --sub:#6b6863; --line:#e3e0da;
   --accent:#a8501f; --accent-ink:#ffffff; --field:#faf9f6;
@@ -103,25 +104,48 @@ button:disabled{opacity:.5;cursor:default;}
 .infoGrid div span{display:block;color:var(--sub);font-size:.72rem;}
 </style>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<script defer src="./g3d-auth-config.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="./g3d-auth.js"></script>
 <link rel="preconnect" href="https://huggingface.co" crossorigin>
 <link rel="dns-prefetch" href="//huggingface.co">
 <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.27</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.28</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.27</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.28</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsCard">
+      <p class="sectitle">Account</p>
+      <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
+      <div class="accountActions">
+        <button id="authOpenBtn" type="button">Sign in / Create account</button>
+        <button id="authSignOutBtn" class="btn-secondary" type="button" style="display:none;">Sign out</button>
+      </div>
+      <div id="authSetupHint" class="authMsg"></div>
+    </div>
+    <div class="settingsCard">
+      <p class="sectitle">AI API key</p>
+      <p class="hint" style="margin:0 0 10px;">Add your own provider key. G3D encrypts the saved key on this device; it is not placed in the public site code.</p>
+      <div class="row">
+        <div><label for="apiProvider">Provider</label><select id="apiProvider"><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="groq">Groq</option><option value="deepseek">DeepSeek</option><option value="custom">Custom</option></select></div>
+        <div><label for="apiKeyInput">API key</label><input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste your key"></div>
+      </div>
+      <div class="row single"><div><label for="apiPassword">Account password</label><input id="apiPassword" type="password" autocomplete="current-password" placeholder="Required to encrypt or unlock"></div></div>
+      <div class="keyActions"><button id="saveApiKeyBtn" type="button">Save encrypted key</button><button id="unlockApiKeyBtn" class="btn-secondary" type="button">Unlock saved key</button><button id="clearApiKeyBtn" class="btn-secondary" type="button">Clear</button></div>
+      <div id="apiKeyStatus" class="authMsg"></div>
+    </div>
     <div class="settingsCard">
       <p class="sectitle">Artifacts</p>
-      <p class="hint" style="margin:0 0 10px;">STL files from G3D AI and Pattern Generator are stored separately from chats.</p>
+      <p class="hint" style="margin:0 0 10px;">Saved STL files belong to your signed-in account. Guests do not get saved artifacts.</p>
       <div id="artifactList"></div>
     </div>
   </div>
 </section>
-<aside class="chatDrawer" id="chatDrawer"><div class="chatHead"><strong>G3D AI Chats</strong><button class="chatClose" id="chatClose">×</button></div><button class="newChat" id="newChatBtn">+ New chat</button><button class="settingsBtn btn-secondary" id="settingsBtn">Settings</button><div class="chatList" id="chatList"></div></aside>
+<aside class="chatDrawer" id="chatDrawer"><div class="chatHead"><strong>G3D AI Chats</strong><button class="chatClose" id="chatClose">×</button></div><div id="drawerAccountState" class="hint" style="padding:0 16px;margin:0 0 10px;">Guest: chats will not be saved.</div><button class="newChat" id="newChatBtn">+ New chat</button><button class="settingsBtn btn-secondary" id="settingsBtn">Settings</button><div class="chatList" id="chatList"></div></aside>
 <div class="tabs">
   <div class="tab active" id="tabPG">Pattern Generator</div>
   <div class="tab" id="tabAI">G3D AI</div>
@@ -204,7 +228,7 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.27</span></h1>
+  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.28</span></h1>
   <p class="sub">Internal design tool. Describe any 3D object in plain language. The selected local model plans the geometry, then G3D builds the actual custom mesh. Simple geometry bypasses the model for instant results.</p>
 
   <div class="card">
@@ -344,8 +368,14 @@ function val(id){ return parseFloat(document.getElementById(id).value); }
 
 // ================= Persistent artifacts =================
 const ART_META_KEY='g3d_artifact_meta_v1',ART_DB_NAME='g3d_artifacts_db_v1',ART_STORE='files';
-let artifactsMeta=[];try{artifactsMeta=JSON.parse(localStorage.getItem(ART_META_KEY)||'[]');}catch(e){}
-if(!Array.isArray(artifactsMeta))artifactsMeta=[];
+let artifactsMeta=[];
+function isLoggedIn(){return !!(window.g3dAuth&&window.g3dAuth.getUser&&window.g3dAuth.getUser());}
+function userKey(base){const u=window.g3dAuth&&window.g3dAuth.getUser&&window.g3dAuth.getUser();return u?base+':'+u.id:null;}
+function loadUserArtifacts(){
+  artifactsMeta=[];const k=userKey(ART_META_KEY);if(!k){renderArtifacts();return;}
+  try{const v=JSON.parse(localStorage.getItem(k)||'[]');artifactsMeta=Array.isArray(v)?v:[];}catch(e){artifactsMeta=[];}
+  renderArtifacts();
+}
 let artifactDBPromise=null;
 function openArtifactDB(){
   if(artifactDBPromise)return artifactDBPromise;
@@ -359,9 +389,11 @@ function openArtifactDB(){
 async function putArtifactBlob(id,blob){const db=await openArtifactDB();await new Promise((resolve,reject)=>{const tx=db.transaction(ART_STORE,'readwrite');tx.objectStore(ART_STORE).put(blob,id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}
 async function getArtifactBlob(id){const db=await openArtifactDB();return await new Promise((resolve,reject)=>{const tx=db.transaction(ART_STORE,'readonly'),req=tx.objectStore(ART_STORE).get(id);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);});}
 async function deleteArtifactBlob(id){try{const db=await openArtifactDB();await new Promise((resolve,reject)=>{const tx=db.transaction(ART_STORE,'readwrite');tx.objectStore(ART_STORE).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}catch(e){}}
-function persistArtifactMeta(){try{localStorage.setItem(ART_META_KEY,JSON.stringify(artifactsMeta));}catch(e){}}
+function persistArtifactMeta(){const k=userKey(ART_META_KEY);if(!k)return;try{localStorage.setItem(k,JSON.stringify(artifactsMeta));}catch(e){}}
 async function saveArtifact(source,filename,stlBytes,triangles){
-  const blob=new Blob([stlBytes],{type:'model/stl'}),item={id:'a_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),source,filename,bytes:blob.size,triangles:Number(triangles)||0,created:Date.now()};
+  if(!isLoggedIn())return null;
+  const uid=window.g3dAuth.getUser().id;
+  const blob=new Blob([stlBytes],{type:'model/stl'}),item={id:'u_'+uid+'_a_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),source,filename,bytes:blob.size,triangles:Number(triangles)||0,created:Date.now(),userId:uid};
   await putArtifactBlob(item.id,blob);artifactsMeta.unshift(item);
   if(artifactsMeta.length>100){const removed=artifactsMeta.splice(100);removed.forEach(x=>deleteArtifactBlob(x.id));}
   persistArtifactMeta();renderArtifacts();return item;
@@ -369,6 +401,7 @@ async function saveArtifact(source,filename,stlBytes,triangles){
 function formatBytes(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';return (n/1048576).toFixed(2)+' MB';}
 function renderArtifacts(){
   const el=document.getElementById('artifactList');if(!el)return;
+  if(!isLoggedIn()){el.innerHTML='<div class="artifactEmpty">Sign in to save and view artifacts.</div>';return;}
   if(!artifactsMeta.length){el.innerHTML='<div class="artifactEmpty">No artifacts yet. Generate an STL and it will appear here.</div>';return;}
   el.innerHTML=artifactsMeta.map(x=>'<div class="artifactItem"><div class="artifactMain"><div class="artifactName">'+esc(x.filename)+'</div><div class="artifactMeta">'+esc(x.source)+' · '+formatBytes(x.bytes)+' · '+x.triangles.toLocaleString()+' triangles</div></div><div class="artifactActions"><button class="btn-secondary artifactDownload" data-id="'+x.id+'">Download</button><button class="btn-secondary artifactCopy" data-id="'+x.id+'">Copy</button><button class="btn-secondary artifactDelete" data-id="'+x.id+'">Delete</button></div></div>').join('');
   el.querySelectorAll('.artifactDownload').forEach(b=>b.onclick=()=>downloadArtifact(b.dataset.id));el.querySelectorAll('.artifactCopy').forEach(b=>b.onclick=()=>copyArtifact(b.dataset.id));el.querySelectorAll('.artifactDelete').forEach(b=>b.onclick=()=>removeArtifact(b.dataset.id));
@@ -445,8 +478,9 @@ async function generatePG(){
     const triCount=Math.floor(tris.length/12),stl=trisToSTL(tris);
     if(!viewerPG)viewerPG=await createViewer('previewWrap','wireToggle');
     document.getElementById('previewCard').style.display='';viewerPG.showMesh(tris);
-    saveArtifact('Pattern Generator',lastFilenamePG,stl,triCount).catch(console.error);
-    status.textContent='Generated '+triCount.toLocaleString()+' triangles. Saved to Artifacts.';dlBtn.disabled=false;
+    saveArtifact('Pattern Generator',lastFilenamePG,stl,triCount).then(saved=>{
+      status.textContent='Generated '+triCount.toLocaleString()+' triangles.'+(saved?' Saved to Artifacts.':' Sign in to save it to Artifacts.');
+    }).catch(console.error);dlBtn.disabled=false;
   }catch(err){console.error(err);status.textContent='Error: '+(err.message||err);}
   btn.disabled=false;
 }
@@ -635,16 +669,25 @@ async function getMeshFromWorker(spec,res,key,mode){
 
 const CHAT_KEY='g3d_ai_chats_v1';
 let chats=[],activeChatId=null;
+function chatStorageKey(){const k=userKey(CHAT_KEY);return k;}
+function loadUserChats(){
+  chats=[];activeChatId=null;
+  const k=chatStorageKey();if(!k){renderChats();renderChat();return;}
+  try{const v=JSON.parse(localStorage.getItem(k)||'[]');chats=Array.isArray(v)?v:[];}catch(e){chats=[];}
+  if(chats.length)activeChatId=chats[0].id;
+  const x=getChat();aiPrevSpec=x&&x.spec||null;renderChats();renderChat();
+}
 function esc(s){return String(s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
-function saveChats(){try{localStorage.setItem(CHAT_KEY,JSON.stringify(chats));}catch(e){}}
+function saveChats(){const k=chatStorageKey();if(!k)return;try{localStorage.setItem(k,JSON.stringify(chats.filter(x=>!x.ephemeral)));}catch(e){}}
 function getChat(){return chats.find(function(x){return x.id===activeChatId;})||null;}
 function newChat(){
-  const x={id:'c_'+Date.now(),title:'New design',messages:[],spec:null,updated:Date.now()};
-  chats.unshift(x);activeChatId=x.id;saveChats();renderChats();renderChat();const p=document.getElementById('aiPrompt');if(p)p.value='';return x;
+  const x={id:'c_'+Date.now(),title:'New design',messages:[],spec:null,updated:Date.now(),ephemeral:!isLoggedIn()};
+  chats.unshift(x);activeChatId=x.id;if(!x.ephemeral)saveChats();renderChats();renderChat();const p=document.getElementById('aiPrompt');if(p)p.value='';return x;
 }
 function deleteChat(id){
   const wasActive=id===activeChatId;chats=chats.filter(x=>x.id!==id);
-  if(!chats.length){const x={id:'c_'+Date.now(),title:'New design',messages:[],spec:null,updated:Date.now()};chats=[x];activeChatId=x.id;}
+  if(!chats.length&&!isLoggedIn())newChat();
+  else if(!chats.length){activeChatId=null;aiPrevSpec=null;}
   else if(wasActive)activeChatId=chats[0].id;
   saveChats();const x=getChat();aiPrevSpec=x&&x.spec||null;renderChats();renderChat();const p=document.getElementById('aiPrompt');if(p)p.value='';
 }
@@ -656,7 +699,7 @@ function renderChats(){
 }
 function renderChat(){
   const x=getChat(),box=document.getElementById('chatMessages');
-  if(!x){box.innerHTML='';return;}
+  if(!x){box.innerHTML=isLoggedIn()?'':'<div class="chatEmpty">Guest session: chat history will not be saved. Sign in to keep your designs.</div>';return;}
   box.innerHTML=x.messages.map(m=>'<div class="chatMsg '+(m.role==='user'?'user':'')+'">'+esc(m.text)+'</div>').join('');
   box.scrollTop=box.scrollHeight;aiPrevSpec=x.spec||null;
 }
@@ -669,7 +712,7 @@ function openDrawer(){document.getElementById('chatDrawer').classList.add('open'
 function closeDrawer(){document.getElementById('chatDrawer').classList.remove('open');document.getElementById('drawerShade').classList.remove('show');}
 document.getElementById('chatMenuBtn').onclick=openDrawer;document.getElementById('chatClose').onclick=closeDrawer;document.getElementById('drawerShade').onclick=closeDrawer;document.getElementById('settingsBtn').onclick=openSettings;document.getElementById('settingsClose').onclick=closeSettings;
 document.getElementById('newChatBtn').onclick=function(){newChat();closeDrawer();};
-try{chats=JSON.parse(localStorage.getItem(CHAT_KEY)||'[]');}catch(e){chats=[];}if(!Array.isArray(chats))chats=[];if(!chats.length)newChat();else{activeChatId=chats[0].id;renderChats();renderChat();}
+renderChats();renderChat();
 
 
 function nameFromSpec(spec){
@@ -698,13 +741,78 @@ async function generateAI(){
     const triCount=Math.floor(tris.length/12),stl=trisToSTL(tris);saveArtifact('G3D AI',lastFilenameAI,stl,triCount).catch(console.error);
     const stats=meshStats(tris),grid=document.getElementById('aiInfoGrid'),modelInfo=window.g3dGetModelInfo?window.g3dGetModelInfo():{name:'Local model'};
     grid.innerHTML='<div><span>AI model</span>'+modelInfo.name+'</div><div><span>Geometry</span>'+spec.parts.length+' custom parts / CSG</div><div><span>File name</span>'+lastFilenameAI+'</div><div><span>Triangles</span>'+triCount.toLocaleString()+'</div><div><span>X dimension</span>'+stats.x.toFixed(1)+' mm</div><div><span>Y dimension</span>'+stats.y.toFixed(1)+' mm</div><div><span>Z dimension</span>'+stats.z.toFixed(1)+' mm</div><div><span>Approx. volume</span>'+(stats.volume/1000).toFixed(2)+' cm³</div>';
-    document.getElementById('aiInfoCard').style.display='';status.textContent='Generated '+triCount.toLocaleString()+' triangles from '+spec.parts.length+' real geometric parts. Saved to Artifacts.';dlBtn.disabled=false;
+    document.getElementById('aiInfoCard').style.display='';
+    const saved=await saveArtifact('G3D AI',lastFilenameAI,stl,triCount);
+    status.textContent='Generated '+triCount.toLocaleString()+' triangles from '+spec.parts.length+' real geometric parts.'+(saved?' Saved to Artifacts.':' Sign in to save it to Artifacts.');
+    dlBtn.disabled=false;
   }catch(err){console.error(err);status.textContent='Error: '+(err.message||err);}
   btn.disabled=false;
 }
 document.getElementById('aiGenBtn').addEventListener('click',generateAI);
 document.getElementById('aiNewBtn').addEventListener('click',function(){newChat();});
 document.getElementById('aiDlBtn').addEventListener('click',()=>downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiDlBtn'),lastTrisAI,lastFilenameAI));
+
+// ================= Account UI + persistence gating =================
+const authModal=document.getElementById('authModal'),authOpenBtn=document.getElementById('authOpenBtn'),authSignOutBtn=document.getElementById('authSignOutBtn');
+const accountState=document.getElementById('accountState'),drawerAccountState=document.getElementById('drawerAccountState'),accountBadge=document.getElementById('g3dAccountBadge');
+const authTabLogin=document.getElementById('authTabLogin'),authTabSignup=document.getElementById('authTabSignup'),authLoginForm=document.getElementById('authLoginForm'),authSignupForm=document.getElementById('authSignupForm'),loginMsg=document.getElementById('loginMsg'),signupMsg=document.getElementById('signupMsg'),authSetupHint=document.getElementById('authSetupHint');
+const apiProvider=document.getElementById('apiProvider'),apiKeyInput=document.getElementById('apiKeyInput'),apiPassword=document.getElementById('apiPassword'),saveApiKeyBtn=document.getElementById('saveApiKeyBtn'),unlockApiKeyBtn=document.getElementById('unlockApiKeyBtn'),clearApiKeyBtn=document.getElementById('clearApiKeyBtn'),apiKeyStatus=document.getElementById('apiKeyStatus');
+
+function authName(u){return (u&&u.user_metadata&&u.user_metadata.username)||((u&&u.email||'').split('@')[0])||'Account';}
+function setAuthMode(mode){
+  const login=mode==='login';authTabLogin.classList.toggle('active',login);authTabSignup.classList.toggle('active',!login);authLoginForm.style.display=login?'':'none';authSignupForm.style.display=login?'none':'';
+  loginMsg.textContent='';signupMsg.textContent='';
+}
+function openAuth(){authModal.classList.add('open');authModal.setAttribute('aria-hidden','false');setAuthMode('login');}
+function closeAuth(){authModal.classList.remove('open');authModal.setAttribute('aria-hidden','true');}
+authOpenBtn.onclick=openAuth;document.getElementById('authClose').onclick=closeAuth;authModal.addEventListener('click',e=>{if(e.target===authModal)closeAuth();});
+authTabLogin.onclick=()=>setAuthMode('login');authTabSignup.onclick=()=>setAuthMode('signup');
+authSignOutBtn.onclick=async()=>{try{await window.g3dAuth.signOut();}catch(e){authSetupHint.textContent=e.message||String(e);}};
+
+authLoginForm.addEventListener('submit',async e=>{
+  e.preventDefault();loginMsg.textContent='Signing in…';
+  try{await window.g3dAuth.signIn(document.getElementById('loginEmail').value.trim(),document.getElementById('loginPassword').value);loginMsg.textContent='Signed in.';setTimeout(closeAuth,250);}
+  catch(err){loginMsg.textContent=err.message||String(err);}
+});
+authSignupForm.addEventListener('submit',async e=>{
+  e.preventDefault();signupMsg.textContent='Creating account…';
+  try{
+    const r=await window.g3dAuth.signUp(document.getElementById('signupUsername').value.trim(),document.getElementById('signupEmail').value.trim(),document.getElementById('signupPassword').value);
+    signupMsg.textContent=(r&&r.session)?'Account created and signed in.':'Account created. Check your email to verify the account before signing in.';
+  }catch(err){signupMsg.textContent=err.message||String(err);}
+});
+document.getElementById('forgotPasswordBtn').onclick=async()=>{
+  const email=document.getElementById('loginEmail').value.trim();if(!email){loginMsg.textContent='Enter your email first.';return;}
+  try{await window.g3dAuth.resetPassword(email);loginMsg.textContent='Password-reset email sent.';}catch(e){loginMsg.textContent=e.message||String(e);}
+};
+
+function refreshAccountUi(){
+  const u=window.g3dAuth&&window.g3dAuth.getUser&&window.g3dAuth.getUser(),name=authName(u);
+  accountBadge.textContent=u?name:'Guest';accountState.textContent=u?('Signed in as '+name+'. Your chats and artifacts can now be saved.'):((window.g3dAuth&&window.g3dAuth.configured)?'Not signed in. Chats and artifacts are not saved.':'Authentication backend is not connected yet. Chats and artifacts are not saved.');
+  drawerAccountState.textContent=u?('Signed in as '+name+'. Chat history is saved.'): 'Guest: chats will not be saved.';
+  authOpenBtn.style.display=u?'none':'block';authSignOutBtn.style.display=u?'block':'none';
+  authSetupHint.textContent=(!u && !(window.g3dAuth&&window.g3dAuth.configured))?'To activate accounts, put your Supabase public URL and anon/publishable key in g3d-auth-config.js, then enable email/password auth and email confirmation in Supabase.':'';
+  const vault=window.g3dAuth&&window.g3dAuth.apiVaultStatus?window.g3dAuth.apiVaultStatus():{saved:false,unlocked:false};
+  apiKeyStatus.textContent=!u?'Sign in to store an API key.':(vault.saved?(vault.unlocked?'Saved key is unlocked for this session.':'Saved key exists on this device. Enter your password and unlock it.'):'No API key saved for this account on this device.');
+  renderChats();renderChat();loadUserArtifacts();
+}
+window.addEventListener('g3d-auth-state',refreshAccountUi);
+refreshAccountUi();
+
+saveApiKeyBtn.onclick=async()=>{
+  if(!isLoggedIn()){apiKeyStatus.textContent='Sign in first.';return;}
+  try{await window.g3dAuth.saveApiKey(apiProvider.value,apiKeyInput.value.trim(),apiPassword.value);apiKeyInput.value='';apiKeyStatus.textContent='API key encrypted and saved on this device for this account.';}
+  catch(e){apiKeyStatus.textContent=e.message||String(e);}
+};
+unlockApiKeyBtn.onclick=async()=>{
+  if(!isLoggedIn()){apiKeyStatus.textContent='Sign in first.';return;}
+  try{const r=await window.g3dAuth.unlockApiKey(apiPassword.value);apiProvider.value=r.provider;apiPassword.value='';apiKeyStatus.textContent='Saved API key unlocked for this session.';}
+  catch(e){apiKeyStatus.textContent=e.message||String(e);}
+};
+clearApiKeyBtn.onclick=()=>{
+  if(!isLoggedIn()){apiKeyStatus.textContent='Sign in first.';return;}
+  window.g3dAuth.clearApiKey();apiKeyInput.value='';apiPassword.value='';apiKeyStatus.textContent='Saved API key cleared from this device.';
+};
 // ================= Tab / swipe navigation =================
 const track = document.getElementById('track');
 const tabPG = document.getElementById('tabPG');
@@ -760,5 +868,10 @@ viewport.addEventListener('pointerup', endDrag);
 viewport.addEventListener('pointercancel', endDrag);
 viewport.addEventListener('pointerleave', endDrag);
 </script>
-</body>
+<section class="authModal" id="authModal" aria-hidden="true"><div class="authBox">
+  <div class="settingsTop" style="margin-bottom:12px;"><div><h1 style="margin:0;">G3D Account</h1><p class="sub" style="margin:4px 0 0;">Your chats and artifacts are saved only to your account.</p></div><button class="settingsClose" id="authClose">×</button></div>
+  <div class="authTabs"><button class="authTab active" id="authTabLogin" type="button">Sign in</button><button class="authTab" id="authTabSignup" type="button">Create account</button></div>
+  <form id="authLoginForm"><div class="row single"><div><label for="loginEmail">Email</label><input id="loginEmail" type="email" required autocomplete="email"></div><div><label for="loginPassword">Password</label><input id="loginPassword" type="password" required autocomplete="current-password"></div></div><button type="submit">Sign in</button><div class="authMsg" id="loginMsg"></div><button type="button" class="btn-secondary" id="forgotPasswordBtn" style="margin-top:8px;">Email me a password-reset link</button></form>
+  <form id="authSignupForm" style="display:none;"><div class="row single"><div><label for="signupUsername">Username</label><input id="signupUsername" type="text" required maxlength="40" autocomplete="username"></div><div><label for="signupEmail">Email</label><input id="signupEmail" type="email" required autocomplete="email"></div><div><label for="signupPassword">Password</label><input id="signupPassword" type="password" required minlength="8" autocomplete="new-password"></div></div><button type="submit">Create account</button><div class="authMsg" id="signupMsg"></div></form>
+</div></section></body>
 </html>
