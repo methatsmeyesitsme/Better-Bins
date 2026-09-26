@@ -1,7 +1,12 @@
 const MODEL="onnx-community/Qwen2.5-0.5B-Instruct";
-const WORKER_URL="./qwen-worker-v1.20.js";
+const WORKER_URL="./qwen-worker-v1.21.js";
 let worker=null,seq=0;
 const pending=new Map();
+const specCache=new Map();
+const SPEC_CACHE_MAX=16;
+function cacheKey(prevSpec,text){return JSON.stringify([prevSpec||null,String(text||"").trim().toLowerCase()]);}
+function cacheGet(k){if(!specCache.has(k))return null;const v=specCache.get(k);specCache.delete(k);specCache.set(k,v);return JSON.parse(JSON.stringify(v));}
+function cachePut(k,v){specCache.set(k,JSON.parse(JSON.stringify(v)));if(specCache.size>SPEC_CACHE_MAX)specCache.delete(specCache.keys().next().value);}
 
 
 function fastPrimitiveSpec(text,prevSpec){
@@ -22,6 +27,18 @@ function fastPrimitiveSpec(text,prevSpec){
   if(has("cylinder")){
     const diameter=n(0,40),height=n(1,40);
     return {...base,parts:[{type:"cylinder",radius:diameter/2,height,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"}]};
+  }
+  if(has("rectangular prism","rectangular block","cuboid")||((has("prism")||has("block"))&&mm.length>=3)){
+    const x=n(0,40),y=n(1,40),z=n(2,20);
+    return {...base,parts:[{type:"box",size:[x,y,z],position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"}]};
+  }
+  if(has("cone")&&!complex){
+    const diameter=n(0,40),height=n(1,40);
+    return {...base,parts:[{type:"cone",radius:diameter/2,radius2:1,height,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"}]};
+  }
+  if((has("tube","hollow cylinder"))&&!complex){
+    const outer=n(0,40),inner=n(1,30),height=n(2,40);
+    return {...base,parts:[{type:"tube",outerRadius:outer/2,innerRadius:Math.min(inner/2,outer/2-0.3),height,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"}]};
   }
   if(has("torus","ring")){
     const outer=n(0,50),tube=n(1,12);
@@ -67,10 +84,15 @@ async function qwenToSpec(prevSpec,userText,status){
     if(status)status.textContent="Building exact primitive locally…";
     return fast;
   }
+  const ck=cacheKey(prevSpec,userText),cached=cacheGet(ck);
+  if(cached){
+    if(status)status.textContent="Reusing cached design…";
+    return cached;
+  }
   const id=++seq;
   if(status)status.textContent="Qwen is interpreting your request…";
   return new Promise((resolve,reject)=>{
-    pending.set(id,{resolve,reject});
+    pending.set(id,{resolve:(spec)=>{cachePut(ck,spec);resolve(spec);},reject});
     try{ensureWorker().postMessage({type:"generate",id,prevSpec:prevSpec||null,userText:String(userText||"")});}
     catch(e){pending.delete(id);reject(e);}
   });
