@@ -68,7 +68,8 @@
       const id=localStorage.getItem(SESSION_KEY);
       user=id?findUserById(id):null;
       if(id&&!user)localStorage.removeItem(SESSION_KEY);
-    }catch(e){user=null;}
+      if(user)await restoreApiKey();
+    }catch(e){user=null;unlockedVault=null;}
     publish();
   }
   function getUser(){return user?publicUser(user):null;}
@@ -88,7 +89,7 @@
     const hash=await deriveHash(password,salt);
     const rec={id:randomId('u_'),username,email,salt:b64(salt),hash:b64(hash),created:Date.now()};
     accounts.push(rec);writeAccounts(accounts);
-    localStorage.setItem(SESSION_KEY,rec.id);user=rec;publish();
+    localStorage.setItem(SESSION_KEY,rec.id);user=rec;await restoreApiKey();publish();
     return {session:{user:publicUser(rec)},user:publicUser(rec)};
   }
 
@@ -98,7 +99,7 @@
     if(!rec)throw new Error('No account was found with that email.');
     const hash=await deriveHash(password,unb64(rec.salt));
     if(!equalBytes(hash,unb64(rec.hash)))throw new Error('Incorrect password.');
-    localStorage.setItem(SESSION_KEY,rec.id);user=rec;publish();
+    localStorage.setItem(SESSION_KEY,rec.id);user=rec;await restoreApiKey();publish();
     return {session:{user:publicUser(rec)},user:publicUser(rec)};
   }
 
@@ -116,45 +117,83 @@
   async function verifyTotp(){throw new Error('Two-factor email delivery is unavailable in local account mode.');}
   async function listMfa(){return [];}
 
-  const VAULT_PREFIX='g3d_api_vault_v1:';
+  const VAULT_PREFIX='g3d_api_vault_v2:';
+  const DEVICE_DB='g3d_api_device_key_v1';
+  const DEVICE_STORE='keys';
+  const DEVICE_KEY_ID='api-key-encryption';
   let unlockedVault=null;
   const td=new TextDecoder();
-  async function deriveKey(password,uid){
-    const material=await crypto.subtle.importKey('raw',te.encode(String(password)),{name:'PBKDF2'},false,['deriveKey']);
-    return crypto.subtle.deriveKey(
-      {name:'PBKDF2',salt:te.encode('G3D:'+uid),iterations:150000,hash:'SHA-256'},
-      material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']
-    );
-  }
+  const te2=new TextEncoder();
+
   function vaultKey(){return user?VAULT_PREFIX+user.id:null;}
+
   function readVault(){
     if(!user)return null;
     try{const r=localStorage.getItem(vaultKey());return r?JSON.parse(r):null;}catch(e){return null;}
   }
-  async function saveApiKey(provider,key,password){
+
+  async function getDeviceKey(){
+    if(!window.indexedDB)throw new Error('Secure device storage is unavailable in this browser.');
+    const db=await new Promise((resolve,reject)=>{
+      const req=indexedDB.open(DEVICE_DB,1);
+      req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(DEVICE_STORE))req.result.createObjectStore(DEVICE_STORE);};
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>reject(req.error||new Error('Could not open secure device storage.'));
+    });
+    try{
+      const existing=await new Promise((resolve,reject)=>{
+        const tx=db.transaction(DEVICE_STORE,'readonly'),req=tx.objectStore(DEVICE_STORE).get(DEVICE_KEY_ID);
+        req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);
+      });
+      if(existing)return existing;
+      const key=await crypto.subtle.generateKey({name:'AES-GCM',length:256},true,['encrypt','decrypt']);
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction(DEVICE_STORE,'readwrite');
+        tx.objectStore(DEVICE_STORE).put(key,DEVICE_KEY_ID);
+        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('Could not save secure device key.'));
+      });
+      return key;
+    }finally{db.close();}
+  }
+
+  async function restoreApiKey(){
+    unlockedVault=null;
+    const rec=readVault();
+    if(!rec)return null;
+    try{
+      const key=await getDeviceKey();
+      const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(rec.iv)},key,unb64(rec.cipher));
+      unlockedVault={provider:rec.provider,key:td.decode(plain),saved:rec.saved};
+      return {...unlockedVault};
+    }catch(e){
+      unlockedVault=null;
+      return null;
+    }
+  }
+
+  async function saveApiKey(provider,key){
     if(!user)throw new Error('Sign in first.');
-    if(!key||!password)throw new Error('Enter the API key and your account password.');
-    const iv=crypto.getRandomValues(new Uint8Array(12)),k=await deriveKey(password,user.id);
-    const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,te.encode(key));
+    if(!key)throw new Error('Enter an API key.');
+    const iv=crypto.getRandomValues(new Uint8Array(12)),deviceKey=await getDeviceKey();
+    const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv},deviceKey,te2.encode(String(key)));
     const rec={provider:String(provider||'custom'),iv:b64(iv),cipher:b64(cipher),saved:Date.now()};
     localStorage.setItem(vaultKey(),JSON.stringify(rec));
     unlockedVault={provider:rec.provider,key:String(key),saved:rec.saved};
     return rec;
   }
-  async function unlockApiKey(password){
+
+  async function unlockApiKey(){
     if(!user)throw new Error('Sign in first.');
-    const rec=readVault();if(!rec)throw new Error('No saved API key on this device.');
-    try{
-      const k=await deriveKey(password,user.id);
-      const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(rec.iv)},k,unb64(rec.cipher));
-      unlockedVault={provider:rec.provider,key:td.decode(plain),saved:rec.saved};
-      return {...unlockedVault};
-    }catch(e){throw new Error('That password could not unlock the saved API key.');}
+    const restored=await restoreApiKey();
+    if(!restored)throw new Error('No usable saved API key was found on this device.');
+    return restored;
   }
+
   function clearApiKey(){
     if(user)localStorage.removeItem(vaultKey());
     unlockedVault=null;
   }
+
   function apiVaultStatus(){
     const rec=readVault();
     return {saved:!!rec,provider:rec&&rec.provider||null,unlocked:!!unlockedVault,key:unlockedVault&&unlockedVault.key||null};

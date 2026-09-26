@@ -171,11 +171,11 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.43</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.44</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.43</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.44</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -187,12 +187,11 @@ button:disabled{opacity:.5;cursor:default;}
     </div>
     <div class="settingsCard">
       <p class="sectitle">AI API key</p>
-      <p class="hint" style="margin:0 0 10px;">Add your own provider key. G3D encrypts the saved key on this device. When you use the cloud provider, the key is used directly by your browser for that provider request.</p>
+      <p class="hint" style="margin:0 0 10px;">Add your own provider key. G3D encrypts the saved key with a device-held key. Your account password is not used for API-key storage. When you use the cloud provider, the key is used directly by your browser for that provider request.</p>
       <div class="row">
         <div><label for="apiProvider">Provider</label><select id="apiProvider"><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="groq">Groq</option><option value="deepseek">DeepSeek</option><option value="custom">Custom</option></select></div>
         <div><label for="apiKeyInput">API key</label><input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste your key"></div>
       </div>
-      <div class="row single"><div><label for="apiPassword">Account password</label><input id="apiPassword" type="password" autocomplete="current-password" placeholder="Required to encrypt or unlock"></div></div>
       <div class="keyActions"><button id="saveApiKeyBtn" type="button">Save encrypted key</button><button id="unlockApiKeyBtn" class="btn-secondary" type="button">Unlock saved key</button><button id="clearApiKeyBtn" class="btn-secondary" type="button">Clear</button></div>
       <div id="apiKeyStatus" class="authMsg"></div>
     </div>
@@ -302,7 +301,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.43</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.44</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -847,7 +846,7 @@ document.getElementById('aiNewBtn').addEventListener('click',function(){newChat(
 const authModal=document.getElementById('authModal'),authOpenBtn=document.getElementById('authOpenBtn'),authSignOutBtn=document.getElementById('authSignOutBtn');
 const accountState=document.getElementById('accountState'),drawerAccountState=document.getElementById('drawerAccountState'),accountBadge=document.getElementById('g3dAccountBadge');
 const authTabLogin=document.getElementById('authTabLogin'),authTabSignup=document.getElementById('authTabSignup'),authLoginForm=document.getElementById('authLoginForm'),authSignupForm=document.getElementById('authSignupForm'),loginMsg=document.getElementById('loginMsg'),signupMsg=document.getElementById('signupMsg'),authSetupHint=document.getElementById('authSetupHint');
-const apiProvider=document.getElementById('apiProvider'),apiKeyInput=document.getElementById('apiKeyInput'),apiPassword=document.getElementById('apiPassword'),saveApiKeyBtn=document.getElementById('saveApiKeyBtn'),unlockApiKeyBtn=document.getElementById('unlockApiKeyBtn'),clearApiKeyBtn=document.getElementById('clearApiKeyBtn'),apiKeyStatus=document.getElementById('apiKeyStatus');
+const apiProvider=document.getElementById('apiProvider'),apiKeyInput=document.getElementById('apiKeyInput'),saveApiKeyBtn=document.getElementById('saveApiKeyBtn'),unlockApiKeyBtn=document.getElementById('unlockApiKeyBtn'),clearApiKeyBtn=document.getElementById('clearApiKeyBtn'),apiKeyStatus=document.getElementById('apiKeyStatus');
 try{const savedProvider=localStorage.getItem('g3d_api_provider_v1');if(savedProvider&&apiProvider.querySelector('option[value="'+savedProvider+'"]'))apiProvider.value=savedProvider;}catch(e){}
 apiProvider.addEventListener('change',()=>{try{localStorage.setItem('g3d_api_provider_v1',apiProvider.value);}catch(e){};window.dispatchEvent(new CustomEvent('g3d-provider-change'));if(window.updateCloudLabel)window.updateCloudLabel();});
 
@@ -891,17 +890,17 @@ refreshAccountUi();
 
 saveApiKeyBtn.onclick=async()=>{
   if(!isLoggedIn()){apiKeyStatus.textContent='Sign in first.';return;}
-  try{await window.g3dAuth.saveApiKey(apiProvider.value,apiKeyInput.value.trim(),apiPassword.value);apiKeyInput.value='';apiKeyStatus.textContent='API key encrypted and saved on this device for this account.';}
+  try{await window.g3dAuth.saveApiKey(apiProvider.value,apiKeyInput.value.trim());apiKeyInput.value='';apiKeyStatus.textContent='API key encrypted and saved on this device for this account.';}
   catch(e){apiKeyStatus.textContent=e.message||String(e);}
 };
 unlockApiKeyBtn.onclick=async()=>{
   if(!isLoggedIn()){apiKeyStatus.textContent='Sign in first.';return;}
-  try{const r=await window.g3dAuth.unlockApiKey(apiPassword.value);apiProvider.value=r.provider;apiPassword.value='';apiKeyStatus.textContent='Saved API key unlocked for this session.';}
+  try{const r=await window.g3dAuth.unlockApiKey();apiProvider.value=r.provider;apiKeyStatus.textContent='Saved API key unlocked for this session.';}
   catch(e){apiKeyStatus.textContent=e.message||String(e);}
 };
 clearApiKeyBtn.onclick=()=>{
   if(!isLoggedIn()){apiKeyStatus.textContent='Sign in first.';return;}
-  window.g3dAuth.clearApiKey();apiKeyInput.value='';apiPassword.value='';apiKeyStatus.textContent='Saved API key cleared from this device.';
+  window.g3dAuth.clearApiKey();apiKeyInput.value='';apiKeyStatus.textContent='Saved API key cleared from this device.';
 };
 
 // Password visibility toggles
