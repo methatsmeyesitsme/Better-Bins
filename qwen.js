@@ -1,5 +1,5 @@
 const MODEL="onnx-community/Qwen2.5-0.5B-Instruct";
-const WORKER_URL="./qwen-worker-v1.10.js";
+const WORKER_URL="./qwen-worker-v1.15.js";
 let worker=null,seq=0,workerBroken=false;
 const pending=new Map();
 let mainPipePromise=null;
@@ -41,6 +41,7 @@ function ensureWorker(){
   worker.addEventListener("message",e=>{
     const m=e.data||{};
     if(m.type==="status"){const s=document.getElementById("aiStatus");if(s)s.textContent=m.text||"";return;}
+    if(m.type==="ready"){const s=document.getElementById("aiStatus");if(s)s.textContent="Qwen is ready.";return;}
     const p=pending.get(m.id);if(!p)return;
     pending.delete(m.id);
     if(m.type==="result")p.resolve(m.spec);
@@ -54,23 +55,11 @@ function ensureWorker(){
   });
   return worker;
 }
-async function getMainPipe(status){
-  if(mainPipePromise)return mainPipePromise;
-  if(status)status.textContent="Starting Qwen fallback…";
-  mainPipePromise=import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/+esm").then(({pipeline})=>{
-    const device=(navigator.gpu)?"webgpu":"wasm";
-    return pipeline("text-generation",MODEL,{dtype:"q4",device}).catch(err=>{
-      if(device!=="webgpu")throw err;
-      return pipeline("text-generation",MODEL,{dtype:"q4",device:"wasm"});
-    });
-  });
-  try{return await mainPipePromise;}catch(e){mainPipePromise=null;throw e;}
-}
-async function runMain(prevSpec,userText,status){
-  const generator=await getMainPipe(status);
-  if(status)status.textContent="Qwen is interpreting your request…";
-  const result=await generator([{role:"system",content:buildSystem(prevSpec)},{role:"user",content:String(userText||"")}],{max_new_tokens:128,do_sample:false,return_full_text:false});
-  return parseJSON(outputText(result));
+async function preloadQwen(status){
+  const w=ensureWorker();
+  if(!w)return;
+  if(status)status.textContent="Loading Qwen in the background…";
+  try{w.postMessage({type:"preload"});}catch(e){}
 }
 async function qwenToSpec(prevSpec,userText,status){
   const id=++seq;
@@ -93,4 +82,5 @@ async function qwenToSpec(prevSpec,userText,status){
   return runMain(prevSpec,userText,status);
 }
 window.g3dQwenToSpec=qwenToSpec;
+window.g3dQwenPreload=preloadQwen;
 window.g3dQwenModel=MODEL;
