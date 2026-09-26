@@ -170,8 +170,12 @@
     return text;
   }
   async function respond({prevSpec,userText,history,status,signal,onDelta}){
-    const auth=window.g3dAuth,vault=auth&&auth.apiVaultStatus?auth.apiVaultStatus():null;
-    if(!vault||!vault.key)throw new Error('Save and unlock your API key in Settings first.');
+    const auth=window.g3dAuth;
+    let vault=auth&&auth.apiVaultStatus?auth.apiVaultStatus():null;
+    if(vault&&vault.saved&&!vault.key&&auth&&auth.unlockApiKey){
+      try{vault=await auth.unlockApiKey();}catch(e){}
+    }
+    if(!vault||!vault.key)throw new Error('Save your API key in Settings first.');
     const p=info();
     if(vault.provider!==p.id)throw new Error('The saved key is for '+String(vault.provider||'another provider')+'. Select the matching provider in Settings.');
     const build=wantsModel(userText,prevSpec);
