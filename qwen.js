@@ -1,5 +1,5 @@
 const MODEL="onnx-community/Qwen2.5-0.5B-Instruct";
-const WORKER_URL="./qwen-worker-v1.19.js";
+const WORKER_URL="./qwen-worker-v1.20.js";
 let worker=null,seq=0;
 const pending=new Map();
 
@@ -10,7 +10,8 @@ function fastPrimitiveSpec(text,prevSpec){
   const n=(i,d)=>Number.isFinite(mm[i])?mm[i]:d;
   const has=(...words)=>words.some(w=>s.includes(w));
   const base={pattern:"none",periods:2.5,thickness:1.5,quality:18};
-  if(has("cube","box")&&!has("phone box","box of")){
+  const complex=has("with"," and ","hole","holes","cutout","slot","stand","hollow","lattice","gyroid","pattern","handle","lip","opening","keychain","phone");
+  if(has("cube","box")&&!complex&&!has("phone box","box of")){
     const size=n(0,40);
     return {...base,parts:[{type:has("rounded")?"roundedBox":"box",size:[size,size,size],radius:has("rounded")?Math.min(n(1,5),size/2):0,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"}]};
   }
