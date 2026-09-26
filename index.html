@@ -171,11 +171,11 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.44</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.45</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.44</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.45</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -190,7 +190,7 @@ button:disabled{opacity:.5;cursor:default;}
       <p class="hint" style="margin:0 0 10px;">Add your own provider key. G3D encrypts the saved key with a device-held key. Your account password is not used for API-key storage. When you use the cloud provider, the key is used directly by your browser for that provider request.</p>
       <div class="row">
         <div><label for="apiProvider">Provider</label><select id="apiProvider"><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="groq">Groq</option><option value="deepseek">DeepSeek</option><option value="custom">Custom</option></select></div>
-        <div><label for="apiKeyInput">API key</label><input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste your key"></div>
+        <div><label for="apiKeyInput">API key</label><input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste your key" spellcheck="false"></div>
       </div>
       <div class="keyActions"><button id="saveApiKeyBtn" type="button">Save encrypted key</button><button id="unlockApiKeyBtn" class="btn-secondary" type="button">Unlock saved key</button><button id="clearApiKeyBtn" class="btn-secondary" type="button">Clear</button></div>
       <div id="apiKeyStatus" class="authMsg"></div>
@@ -301,7 +301,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.44</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.45</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -882,25 +882,69 @@ function refreshAccountUi(){
   authOpenBtn.style.display=u?'none':'block';authSignOutBtn.style.display=u?'block':'none';
   authSetupHint.textContent=(!u && !(window.g3dAuth&&window.g3dAuth.configured))?'Accounts work without Supabase. They are stored securely on this browser/device and are not synced to other devices.':'';
   const vault=window.g3dAuth&&window.g3dAuth.apiVaultStatus?window.g3dAuth.apiVaultStatus():{saved:false,unlocked:false};
-  apiKeyStatus.textContent=!u?'Sign in to store an API key.':(vault.saved?(vault.unlocked?'Saved key is unlocked for this session.':'Saved key exists on this device. Enter your password and unlock it.'):'No API key saved for this account on this device.');
+  apiKeyStatus.textContent=!u?'Sign in to store an API key.':(vault.saved?(vault.unlocked?'API key is saved on this device and ready to use.':'API key is saved on this device.'):'No API key saved for this account on this device.');
+  if(u && typeof showSavedApiKeyState==='function')showSavedApiKeyState();
   renderChats();renderChat();loadUserArtifacts();
 }
 window.addEventListener('g3d-auth-state',refreshAccountUi);
 refreshAccountUi();
 
+const SAVED_KEY_MASK='••••••••••••••••••••';
+function showSavedApiKeyState(){
+  const vault=window.g3dAuth&&window.g3dAuth.apiVaultStatus?window.g3dAuth.apiVaultStatus():{saved:false,unlocked:false};
+  if(vault.saved){
+    apiKeyInput.value=SAVED_KEY_MASK;
+    apiKeyInput.dataset.saved='true';
+    apiKeyStatus.textContent=vault.unlocked
+      ? 'API key is saved on this device and ready to use.'
+      : 'API key is saved on this device.';
+  }else{
+    apiKeyInput.value='';
+    apiKeyInput.dataset.saved='false';
+  }
+}
+apiKeyInput.addEventListener('focus',()=>{
+  if(apiKeyInput.dataset.saved==='true'){
+    apiKeyInput.value='';
+    apiKeyInput.dataset.saved='false';
+    apiKeyInput.placeholder='Paste a new key to replace the saved key';
+  }
+});
+apiKeyInput.addEventListener('blur',()=>{
+  if(!apiKeyInput.value.trim() && window.g3dAuth&&window.g3dAuth.apiVaultStatus&&window.g3dAuth.apiVaultStatus().saved){
+    apiKeyInput.placeholder='Saved API key — click to replace';
+    showSavedApiKeyState();
+  }
+});
 saveApiKeyBtn.onclick=async()=>{
   if(!isLoggedIn()){apiKeyStatus.textContent='Sign in first.';return;}
-  try{await window.g3dAuth.saveApiKey(apiProvider.value,apiKeyInput.value.trim());apiKeyInput.value='';apiKeyStatus.textContent='API key encrypted and saved on this device for this account.';}
-  catch(e){apiKeyStatus.textContent=e.message||String(e);}
+  try{
+    const value=apiKeyInput.value.trim();
+    if(apiKeyInput.dataset.saved==='true' || value===SAVED_KEY_MASK){
+      showSavedApiKeyState();
+      return;
+    }
+    await window.g3dAuth.saveApiKey(apiProvider.value,value);
+    apiKeyInput.placeholder='Saved API key — click to replace';
+    showSavedApiKeyState();
+  }catch(e){apiKeyStatus.textContent=e.message||String(e);}
 };
 unlockApiKeyBtn.onclick=async()=>{
   if(!isLoggedIn()){apiKeyStatus.textContent='Sign in first.';return;}
-  try{const r=await window.g3dAuth.unlockApiKey();apiProvider.value=r.provider;apiKeyStatus.textContent='Saved API key unlocked for this session.';}
-  catch(e){apiKeyStatus.textContent=e.message||String(e);}
+  try{
+    const r=await window.g3dAuth.unlockApiKey();
+    apiProvider.value=r.provider;
+    updateAIProviderDisplay();
+    showSavedApiKeyState();
+  }catch(e){apiKeyStatus.textContent=e.message||String(e);}
 };
 clearApiKeyBtn.onclick=()=>{
   if(!isLoggedIn()){apiKeyStatus.textContent='Sign in first.';return;}
-  window.g3dAuth.clearApiKey();apiKeyInput.value='';apiKeyStatus.textContent='Saved API key cleared from this device.';
+  window.g3dAuth.clearApiKey();
+  apiKeyInput.value='';
+  apiKeyInput.dataset.saved='false';
+  apiKeyInput.placeholder='Paste your key';
+  apiKeyStatus.textContent='Saved API key cleared from this device.';
 };
 
 // Password visibility toggles
