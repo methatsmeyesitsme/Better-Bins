@@ -21,9 +21,9 @@
     return {id,...p};
   }
   function historyMessages(history){
-    return (Array.isArray(history)?history:[]).slice(-12).map(m=>({
+    return (Array.isArray(history)?history:[]).slice(-6).map(m=>({
       role:m.role==='assistant'?'assistant':'user',
-      content:String(m.text||'').slice(0,5000)
+      content:String(m.text||'').slice(0,1800)
     }));
   }
   function wantsModel(text,prevSpec){
@@ -47,7 +47,6 @@
       "Preserve the current design when modifying it. Do not replace custom designs with unrelated primitives.",
       "All dimensions are millimeters. Maximum 24 parts and 48 polygon points.",
       "Current design: "+JSON.stringify(prevSpec||null),
-      "Recent conversation: "+JSON.stringify(historyMessages(history))
     ].join("\n");
   }
   function chatSystem(history){
@@ -56,7 +55,6 @@
       "You are not required to make 3D models. Talk naturally unless the user explicitly asks to create or modify one.",
       "Answer directly, conversationally, and use the recent conversation for context.",
       "Do not output geometry JSON in normal chat.",
-      "Recent conversation: "+JSON.stringify(historyMessages(history))
     ].join("\n");
   }
   function parseModelJSON(text){
@@ -89,48 +87,78 @@
   function extractAnthropic(data){
     return Array.isArray(data&&data.content)?data.content.map(x=>x.text||'').join(''):'';
   }
-  async function geminiRequest(model,apiKey,system,contents,maxTokens){
-    const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent';
-    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},
-      body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:maxTokens}})});
-    let data=null;try{data=await res.json();}catch(e){}
-    return {res,data,text:extractGemini(data)};
+  function sleep(ms,signal){
+    return new Promise((resolve,reject)=>{
+      const t=setTimeout(resolve,ms);
+      if(signal)signal.addEventListener('abort',()=>{clearTimeout(t);reject(new DOMException('Aborted','AbortError'));},{once:true});
+    });
   }
-  async function callProvider(p,apiKey,system,history,userText,maxTokens){
+  async function readSSE(res,onDelta,signal){
+    if(!res.body)return '';
+    const reader=res.body.getReader(),decoder=new TextDecoder(),parts=[];let buffer='';
+    while(true){
+      if(signal&&signal.aborted)throw new DOMException('Aborted','AbortError');
+      const {value,done}=await reader.read();
+      if(done)break;
+      buffer+=decoder.decode(value,{stream:true});
+      const lines=buffer.split(/\\r?\\n/);buffer=lines.pop()||'';
+      for(const line of lines){
+        const raw=line.trim();
+        if(!raw||raw.startsWith(':'))continue;
+        const dataLine=raw.startsWith('data:')?raw.slice(5).trim():raw;
+        if(!dataLine||dataLine==='[DONE]')continue;
+        try{
+          const data=JSON.parse(dataLine);
+          let delta='';
+          if(data.candidates&&data.candidates[0]&&data.candidates[0].content&&Array.isArray(data.candidates[0].content.parts))
+            delta=data.candidates[0].content.parts.map(x=>x.text||'').join('');
+          else if(data.choices&&data.choices[0]&&data.choices[0].delta)
+            delta=String(data.choices[0].delta.content||'');
+          else if(data.type==='content_block_delta'&&data.delta)delta=String(data.delta.text||'');
+          if(delta){parts.push(delta);if(onDelta)onDelta(delta);}
+        }catch(e){}
+      }
+    }
+    return parts.join('');
+  }
+  async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stream=false,onDelta}={}){
+    const endpoint=stream?'streamGenerateContent?alt=sse':'generateContent';
+    const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':'+endpoint;
+    const generationConfig={maxOutputTokens:maxTokens};
+    if(model==='gemini-3.8-flash'||model==='gemini-3.7-flash')generationConfig.thinkingConfig={thinkingLevel:'low'};
+    const res=await fetch(url,{method:'POST',signal,headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},
+      body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents,generationConfig})});
+    let data=null,text='';
+    if(stream && res.ok)text=await readSSE(res,onDelta,signal);
+    else{try{data=await res.json();}catch(e){}text=extractGemini(data);}
+    return {res,data,text};
+  }
+  async function callProvider(p,apiKey,system,history,userText,maxTokens,{signal,onDelta}={}){
     const historyText=historyMessages(history);
     let res,data,text='';
     if(p.kind==='gemini'){
       const contents=[...historyText,{role:'user',content:String(userText||'')}].map(m=>({
-        role:m.role==='assistant'?'model':'user',
-        parts:[{text:String(m.content||'')}]
+        role:m.role==='assistant'?'model':'user',parts:[{text:String(m.content||'')}]
       }));
-      let result=await geminiRequest(p.model,apiKey,system,contents,maxTokens);
+      let result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta});
       if(!result.res.ok && result.res.status===503){
-        await new Promise(r=>setTimeout(r,450));
-        result=await geminiRequest(p.model,apiKey,system,contents,maxTokens);
+        await sleep(250,signal);
+        result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta});
       }
       if(!result.res.ok && result.res.status===503){
         const fallback='gemini-3.7-flash';
-        result=await geminiRequest(fallback,apiKey,system,contents,maxTokens);
-        if(result.res.ok){
-          text=result.text;
-        }else{
-          const msg=result.data&&result.data.error&&(result.data.error.message||result.data.error.type);
-          throw new Error('Google Gemini is temporarily busy on both models (last error '+result.res.status+'): '+(msg||'Request failed.'));
-        }
-      }else{
-        res=result.res;data=result.data;text=result.text;
+        result=await geminiRequest(fallback,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta});
       }
-      res=result.res;data=result.data;
+      res=result.res;data=result.data;text=result.text;
     }else if(p.kind==='anthropic'){
-      res=await fetch(p.url,{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:p.model,max_tokens:maxTokens,system,messages:[...historyText,{role:'user',content:String(userText||'')}].map(m=>({role:m.role,content:m.content}))})});
-      data=await res.json();text=extractAnthropic(data);
+      res=await fetch(p.url,{method:'POST',signal,headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:p.model,max_tokens:maxTokens,stream:true,system,messages:[...historyText,{role:'user',content:String(userText||'')}].map(m=>({role:m.role,content:m.content}))})});
+      if(res.ok)text=await readSSE(res,onDelta,signal);else{try{data=await res.json();}catch(e){}}
     }else{
       if(!p.url)throw new Error('Custom providers need a custom endpoint.');
-      res=await fetch(p.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
-        body:JSON.stringify({model:p.model,messages:[{role:'system',content:system},...historyText,{role:'user',content:String(userText||'')}],max_completion_tokens:maxTokens})});
-      data=await res.json();text=extractOpenAI(data);
+      res=await fetch(p.url,{method:'POST',signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+        body:JSON.stringify({model:p.model,messages:[{role:'system',content:system},...historyText,{role:'user',content:String(userText||'')}],max_completion_tokens:maxTokens,stream:true})});
+      if(res.ok)text=await readSSE(res,onDelta,signal);else{try{data=await res.json();}catch(e){}}
     }
     if(!res.ok){
       const msg=data&&data.error&&(data.error.message||data.error.type);
@@ -139,7 +167,7 @@
     if(!text.trim())throw new Error((p.label||'AI provider')+' returned an empty response.');
     return text;
   }
-  async function respond({prevSpec,userText,history,status}){
+  async function respond({prevSpec,userText,history,status,signal,onDelta}){
     const auth=window.g3dAuth,vault=auth&&auth.apiVaultStatus?auth.apiVaultStatus():null;
     if(!vault||!vault.key)throw new Error('Save and unlock your API key in Settings first.');
     const p=info();
@@ -147,12 +175,12 @@
     const build=wantsModel(userText,prevSpec);
     if(status)status.textContent=p.label+' is thinking…';
     if(build){
-      const raw=await callProvider(p,vault.key,modelSystem(prevSpec,history),history,userText,1200);
+      const raw=await callProvider(p,vault.key,modelSystem(prevSpec,history),history,userText,850,{signal,onDelta:null});
       const parsed=parseModelJSON(raw);
       if(parsed.mode!=='model')throw new Error('The provider did not return a valid model response.');
       return {mode:'model',reply:String(parsed.reply||'I’ll build that.'),spec:parsed.spec||parsed};
     }
-    const raw=await callProvider(p,vault.key,chatSystem(history),history,userText,900);
+    const raw=await callProvider(p,vault.key,chatSystem(history),history,userText,550,{signal,onDelta});
     return {mode:'chat',reply:raw.trim()};
   }
   window.g3dCloud={respond,info,providerConfig:PROVIDERS};
