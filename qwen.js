@@ -86,7 +86,8 @@ function ensureWorker(){
     if(m.type==="status"){const s=document.getElementById("aiStatus");if(s)s.textContent=m.text||"";return;}
     if(m.type==="ready"){
   const s=document.getElementById("aiStatus");if(s)s.textContent=modelInfo().name+" is ready.";
-  modelLoadReady(m.modelId||selectedModelId,Number(m.elapsed)||0);
+  const readyId=m.modelId||selectedModelId;
+  if(readyId===selectedModelId)modelLoadReady(readyId,Number(m.elapsed)||0);
   return;
 }
     const p=pending.get(m.id);
@@ -141,3 +142,4 @@ window.g3dQwenPreload=preloadQwen;
 window.g3dSetModel=setG3DModel;
 window.g3dGetModelInfo=modelInfo;
 window.g3dQwenModels=MODEL_CONFIGS;
+notifyModelChange();
