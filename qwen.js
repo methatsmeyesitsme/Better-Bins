@@ -1,5 +1,5 @@
 const MODEL="onnx-community/Qwen2.5-0.5B-Instruct";
-const WORKER_URL="./g3d-model-worker-v1.24.js";
+const WORKER_URL="./g3d-model-worker-v1.26.js";
 let worker=null,seq=0;
 const pending=new Map();
 const MODEL_PREF_KEY="g3d_ai_model_v1";
