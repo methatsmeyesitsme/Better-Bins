@@ -58,6 +58,7 @@ button:disabled{opacity:.5;cursor:default;}
 .infoGrid div span{display:block;color:var(--sub);font-size:.72rem;}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="module" src="./qwen.js"></script>
 </head>
 <body>
 <div class="tabs">
@@ -148,7 +149,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="card">
     <p class="sectitle">Describe the part</p>
     <textarea id="aiPrompt" placeholder="Describe the 3D model you want... e.g. &quot;Make me a 40mm cube with a gyroid lattice and thick outer walls.&quot;"></textarea>
-    <p class="hint" style="margin-top:8px;margin-bottom:0;">Claude reads your request and converts it into the geometry spec (a live AI call on your account — one consent prompt the first time). Falls back to a basic built-in parser if AI access isn't available.</p>
+    <p class="hint" style="margin-top:8px;margin-bottom:0;">Qwen runs locally in your browser and converts your request into the geometry spec. The model loads only when you generate your first AI design. Falls back to a basic built-in parser if the local model cannot load.</p>
   </div>
 
   <button id="aiGenBtn">GENERATE STL</button>
@@ -247,8 +248,7 @@ function buildFieldAndBounds(spec){
 }
 
 // ---- Marching tetrahedra ----
-function addTri(tris,a,b,c,dir){
-  let ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2];
+function addTri(tris,a,b,c,dir){  let ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2];
   let vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
   let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
   if(nx*dir[0]+ny*dir[1]+nz*dir[2] < 0){ const t=b; b=c; c=t; nx=-nx; ny=-ny; nz=-nz; }
@@ -354,21 +354,21 @@ function meshStats(tris){
 function downloadExtDataAsTxt(status, dlBtn, tris, filename, cb){
   (async ()=>{
     dlBtn.disabled = true;
-    status.textContent = 'Preparing file...';
+    status.textContent = 'Preparing STL...';
     try{
       const stlBytes = trisToSTL(tris);
-      const downloads = await claude.use('downloads');
-      if(!downloads){ status.textContent = 'Downloads are not available in this view.'; dlBtn.disabled=false; return; }
-      const txtName = filename.replace(/\.stl$/i,'') + '.txt';
-      status.textContent = 'Waiting for download confirmation...';
-      await downloads.save({filename: txtName, data: stlBytes});
-      status.textContent = `Saved ${txtName} — rename the extension from .txt to .stl before opening it in your slicer.`;
+      const blob = new Blob([stlBytes], {type:'model/stl'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      status.textContent = `Saved ${filename}.`;
     } catch(err){
-      const code = err && err.code;
-      if(code==='declined') status.textContent = 'Download cancelled.';
-      else if(code==='too_large') status.textContent = 'File is too large to save here — try a lower mesh quality.';
-      else if(code==='rate_limited') status.textContent = 'Too many download prompts — wait a moment and try again.';
-      else status.textContent = 'Download failed: ' + (err && (err.message||code) || err);
+      status.textContent = 'Download failed: ' + (err && err.message || err);
     }
     dlBtn.disabled = false;
     if(cb) cb();
@@ -497,8 +497,7 @@ function renderParams(){
   let html = '<div class="row">';
   fields.forEach((f,i)=>{
     html += `<div><label for="p_${f.id}">${f.label}</label><input type="number" id="p_${f.id}" value="${f.def}" step="${f.step}" min="1"></div>`;
-    if(i%2===1) html += '</div><div class="row">';
-  });
+    if(i%2===1) html += '</div><div class="row">';  });
   html += '</div>';
   if(roundableShapes[shape]){
     html += `<div class="checkrow"><input type="checkbox" id="rounded" checked><label for="rounded">Rounded edges/corners</label></div>
@@ -747,8 +746,7 @@ function nameFromSpec(spec){
   return `G3D_Squish_${shapeName}${suffix}_${Math.round(size)}mm`;
 }
 
-async function generateAI(){
-  const btn = document.getElementById('aiGenBtn');
+async function generateAI(){  const btn = document.getElementById('aiGenBtn');
   const dlBtn = document.getElementById('aiDlBtn');
   const status = document.getElementById('aiStatus');
   const promptEl = document.getElementById('aiPrompt');
@@ -763,26 +761,17 @@ async function generateAI(){
   let spec = null, notes = [];
   let usedAI = false;
   try{
-    const sample = await claude.use('sample');
-    if(sample){
-      try{
-        const raw = await sample.json(buildAIPrompt(aiPrevSpec, text), {modelTier:'quick', cache:false});
-        spec = mergeAISpec(raw, aiPrevSpec);
-        usedAI = true;
-      } catch(sErr){
-        const code = sErr && sErr.code;
-        if(code==='not_granted') notes.push('AI access wasn\'t granted — used the built-in parser instead.');
-        else if(code==='rate_limited') notes.push('AI is rate-limited right now — used the built-in parser instead.');
-        else if(code==='sampling_disabled' || code==='not_declared' || code==='capability_disabled' || code==='capability_removed')
-          notes.push('AI interpretation isn\'t available on this account — used the built-in parser instead.');
-        else notes.push('AI call failed — used the built-in parser instead.');
-      }
-    } else {
-      notes.push('AI interpretation isn\'t available in this view — used the built-in parser instead.');
-    }
-  } catch(e){ /* claude.use itself never really throws, but be defensive */ }
+    status.textContent = 'Qwen is interpreting your request locally...';
+    const raw = await window.g3dQwenToSpec(aiPrevSpec, text, status);
+    spec = mergeAISpec(raw, aiPrevSpec);
+    usedAI = true;
+  }catch(err){
+    console.error('Qwen failed:', err);
+    notes.push('Qwen could not complete the interpretation, so the built-in parser was used.');
+  }
 
   if(!spec){
+    status.textContent = 'Using the built-in geometry parser...';
     const r = parsePrompt(text, aiPrevSpec);
     spec = r.spec;
     notes = notes.concat(r.notes);
@@ -814,6 +803,7 @@ async function generateAI(){
     const stats = meshStats(tris);
     const grid = document.getElementById('aiInfoGrid');
     grid.innerHTML = `
+      <div><span>AI model</span>Qwen2.5-0.5B-Instruct</div>
       <div><span>File name</span>${lastFilenameAI}</div>
       <div><span>Triangles</span>${tris.length.toLocaleString()}</div>
       <div><span>X dimension</span>${stats.x.toFixed(1)} mm</div>
@@ -823,7 +813,7 @@ async function generateAI(){
     `;
     document.getElementById('aiInfoCard').style.display='';
 
-    let msg = (usedAI ? 'AI-interpreted. ' : '') + `Generated ${tris.length.toLocaleString()} triangles.`;
+    let msg = (usedAI ? 'Qwen interpreted the request locally. ' : '') + `Generated ${tris.length.toLocaleString()} triangles.`;
     if(notes.length) msg += '\n' + notes.join(' ');
     status.textContent = msg;
     dlBtn.disabled = false;
