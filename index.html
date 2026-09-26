@@ -125,6 +125,20 @@ button:disabled{opacity:.5;cursor:default;}
 .chatMsg.g3dBubble{max-width:100%;padding:11px 14px;border-radius:17px;font-size:.88rem;line-height:1.42;white-space:pre-wrap}
 .chatMsgWrap.user .g3dBubble{background:var(--accent);color:var(--accent-ink);border:none;border-bottom-right-radius:6px}
 .chatMsgWrap.assistant .g3dBubble{background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:6px}
+.thinkingText{display:inline-flex;align-items:baseline;gap:2px}
+.thinkingDots{display:inline-flex;gap:3px;margin-left:2px;vertical-align:middle}
+.thinkingDots i{width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.3;animation:g3dDot 1s ease-in-out infinite}
+.thinkingDots i:nth-child(2){animation-delay:.15s}.thinkingDots i:nth-child(3){animation-delay:.3s}
+@keyframes g3dDot{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-2px)}}
+.g3dFileCard{margin-top:7px;width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--field);border-radius:14px;padding:10px 12px;text-align:left;cursor:pointer;transition:transform .15s ease,background .15s ease,border-color .15s ease}
+.g3dFileCard:hover{background:var(--panel);border-color:var(--sub);transform:translateY(-1px)}
+.g3dFileCard:active{transform:translateY(0)}
+.g3dFileLabel{font-size:.64rem;text-transform:uppercase;letter-spacing:.06em;color:var(--sub)}
+.g3dFileName{margin-top:3px;font-size:.82rem;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.g3dFileHint{margin-top:4px;font-size:.68rem;color:var(--sub)}
+.g3dPreviewActions{display:flex;gap:7px;margin-top:10px}
+.g3dPreviewActions button{width:auto;flex:1;padding:9px 10px;font-size:.78rem}
+
 .chatMessageInner{display:flex;flex-direction:column;max-width:min(84%,620px)}
 .chatMsgWrap.user .chatMessageInner{align-items:flex-end}
 .chatMsgWrap.assistant .chatMessageInner{align-items:flex-start}
@@ -186,11 +200,11 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.47</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.48</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.47</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.48</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -316,7 +330,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.47</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.48</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -344,6 +358,7 @@ button:disabled{opacity:.5;cursor:default;}
     <div class="card" id="aiPreviewCard" style="display:none;">
       <p class="sectitle">3D Preview</p>
       <div id="aiPreviewWrap" style="width:100%;height:320px;border-radius:12px;overflow:hidden;background:var(--field);touch-action:none;"></div>
+      <div class="g3dPreviewActions"><button class="btn-secondary" id="aiCopySTLBtn" type="button">Copy STL</button><button class="btn-secondary" id="aiDownloadSTLBtn" type="button">Download STL</button></div>
       <div class="checkrow" style="margin-top:10px;"><input type="checkbox" id="aiWireToggle" checked><label for="aiWireToggle">Show wireframe</label></div>
       <p class="hint" style="margin:0;">Drag to rotate, scroll or pinch to zoom.</p>
     </div>
@@ -760,18 +775,40 @@ function renderChat(){
     box.innerHTML=x.messages.map((m,i)=>{
       const role=m.role==='user'?'user':'assistant';
       const pending=m.pending?' chatPending':'';
-      const body=m.pending&&!m.text?'<div class="chatMsg g3dBubble'+pending+'" data-message-index="'+i+'"><span class="chatText">Thinking…</span></div>':
-        '<div class="chatMsg g3dBubble'+pending+'" data-message-index="'+i+'"><span class="chatText">'+esc(m.text)+'</span></div>';
+      const content=m.pending&&!m.text
+        ?'<div class="chatMsg g3dBubble'+pending+'" data-message-index="'+i+'"><span class="chatText thinkingText">Thinking<span class="thinkingDots" aria-hidden="true"><i></i><i></i><i></i></span></span></div>'
+        :'<div class="chatMsg g3dBubble'+pending+'" data-message-index="'+i+'"><span class="chatText">'+esc(m.text)+'</span></div>';
       const actions=m.pending?'':'<div class="chatActions"><button class="chatAction" type="button" data-action="copy" data-index="'+i+'">Copy</button><button class="chatAction" type="button" data-action="edit" data-index="'+i+'">Edit</button></div>';
-      return '<div class="chatMsgWrap '+role+'"><div class="chatMessageInner">'+body+actions+'</div></div>';
+      let result='';
+      if(m.result){
+        const available=!!(lastTrisAI&&lastFilenameAI===m.result.filename);
+        result='<button class="g3dFileCard" type="button" data-result-preview="'+i+'" '+(available?'':'title="Generate this model again to restore its preview"')+'>'+
+          '<div class="g3dFileLabel">3D model</div>'+
+          '<div class="g3dFileName">'+esc(m.result.filename)+'</div>'+
+          '<div class="g3dFileHint">'+(available?'Click to open 3D preview':'Preview is available in this session after generating the model again')+'</div>'+
+        '</button>';
+      }
+      return '<div class="chatMsgWrap '+role+'"><div class="chatMessageInner">'+content+actions+result+'</div></div>';
     }).join('');
   }
   box.querySelectorAll('.aiSuggestion').forEach(b=>b.onclick=()=>{const p=document.getElementById('aiPrompt');p.value=b.dataset.prompt;p.focus();});
   box.querySelectorAll('[data-action="copy"]').forEach(b=>b.onclick=()=>copyChatMessage(Number(b.dataset.index)));
   box.querySelectorAll('[data-action="edit"]').forEach(b=>b.onclick=()=>editChatMessage(Number(b.dataset.index)));
+  box.querySelectorAll('[data-result-preview]').forEach(b=>b.onclick=()=>openAIResultPreview(Number(b.dataset.resultPreview)));
   box.scrollTop=box.scrollHeight;aiPrevSpec=x.spec||null;
 }
-async function copyChatMessage(index){
+async function openAIResultPreview(index){
+  const x=getChat(),m=x&&x.messages[index];
+  if(!m||!m.result)return;
+  if(!lastTrisAI||lastFilenameAI!==m.result.filename){
+    const status=document.getElementById('aiStatus');
+    if(status)status.textContent='This preview is no longer loaded in memory. Generate the model again to reopen it.';
+    return;
+  }
+  document.getElementById('aiPreviewCard').style.display='';
+  document.getElementById('aiPreviewCard').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function copyChatMessage(index){
   const x=getChat(),m=x&&x.messages[index];
   if(!m)return;
   const text=String(m.text||'');
@@ -841,6 +878,25 @@ function nameFromSpec(spec){
   const s=p.size?Math.max(...p.size):p.radius?Math.round(p.radius*2):40;
   return `G3D_Custom_${pretty[first]||'Model'}_${Math.round(s)}mm`;
 }
+async function copyCurrentSTL(){
+  const status=document.getElementById('aiStatus');
+  if(!lastTrisAI){if(status)status.textContent='Generate a model first.';return;}
+  try{
+    const blob=new Blob([trisToSTL(lastTrisAI)],{type:'model/stl'});
+    if(!navigator.clipboard||!window.ClipboardItem)throw new Error('This browser does not support binary file clipboard access.');
+    await navigator.clipboard.write([new ClipboardItem({'model/stl':blob})]);
+    if(status)status.textContent='STL copied to the clipboard.';
+  }catch(e){
+    if(status)status.textContent='STL copy is not available in this browser. Use Download STL instead.';
+  }
+}
+function downloadCurrentSTL(){
+  if(!lastTrisAI)return;
+  downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiDownloadSTLBtn'),lastTrisAI,lastFilenameAI);
+}
+document.getElementById('aiCopySTLBtn').addEventListener('click',copyCurrentSTL);
+document.getElementById('aiDownloadSTLBtn').addEventListener('click',downloadCurrentSTL);
+
 let aiAbortController=null;
 async function generateAI(){
   const btn=document.getElementById('aiSendBtn'),stopBtn=document.getElementById('aiStopBtn'),status=document.getElementById('aiStatus'),promptEl=document.getElementById('aiPrompt');
@@ -849,7 +905,7 @@ async function generateAI(){
   const x=getChat()||newChat();
   btn.disabled=true;stopBtn.hidden=false;document.getElementById('aiInfoCard').style.display='none';
   addMessage('user',text);
-  const active=getChat(),history=active&&Array.isArray(active.messages)?active.messages.slice(-7):[];
+  const active=getChat(),history=active&&Array.isArray(active.messages)?active.messages.slice(0,-1).slice(-6):[];
   const pendingMsg={role:'assistant',time:Date.now(),text:'',pending:true};
   active.messages.push(pendingMsg);active.updated=Date.now();saveChats();renderChats();renderChat();
   const pendingIndex=active.messages.length-1;

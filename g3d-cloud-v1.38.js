@@ -23,7 +23,7 @@
   function historyMessages(history){
     return (Array.isArray(history)?history:[]).slice(-6).map(m=>({
       role:m.role==='assistant'?'assistant':'user',
-      content:String(m.text||'').slice(0,1800)
+      content:String(m.text||'').slice(0,1400)
     }));
   }
   function wantsModel(text,prevSpec){
@@ -45,7 +45,7 @@
       'pattern is none|gyroid|schwarzp|diamond; periods, thickness, quality are numbers.',
       "Use multiple solids for real features, subtract for holes/cutouts, and prism for custom outlines.",
       "Preserve the current design when modifying it. Do not replace custom designs with unrelated primitives.",
-      "All dimensions are millimeters. Maximum 24 parts and 48 polygon points.",
+      "All dimensions are millimeters. Maximum 24 parts and 48 polygon points. Be concise."
       "Current design: "+JSON.stringify(prevSpec||null),
     ].join("\n");
   }
@@ -53,7 +53,7 @@
     return [
       "You are G3D AI, a helpful general-purpose conversational assistant.",
       "You are not required to make 3D models. Talk naturally unless the user explicitly asks to create or modify one.",
-      "Answer directly, conversationally, and use the recent conversation for context.",
+      "Answer directly and concisely. Use the supplied conversation for context.",
       "Do not output geometry JSON in normal chat.",
     ].join("\n");
   }
@@ -175,12 +175,12 @@
     const build=wantsModel(userText,prevSpec);
     if(status)status.textContent=p.label+' is thinking…';
     if(build){
-      const raw=await callProvider(p,vault.key,modelSystem(prevSpec,history),history,userText,850,{signal,onDelta:null});
+      const raw=await callProvider(p,vault.key,modelSystem(prevSpec,history),history,userText,650,{signal,onDelta:null});
       const parsed=parseModelJSON(raw);
       if(parsed.mode!=='model')throw new Error('The provider did not return a valid model response.');
       return {mode:'model',reply:String(parsed.reply||'I’ll build that.'),spec:parsed.spec||parsed};
     }
-    const raw=await callProvider(p,vault.key,chatSystem(history),history,userText,550,{signal,onDelta});
+    const raw=await callProvider(p,vault.key,chatSystem(history),history,userText,400,{signal,onDelta});
     return {mode:'chat',reply:raw.trim()};
   }
   window.g3dCloud={respond,info,providerConfig:PROVIDERS};
