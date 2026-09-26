@@ -1,5 +1,5 @@
 const MODEL="onnx-community/Qwen2.5-0.5B-Instruct";
-const WORKER_URL="./qwen-worker-v1.09.js";
+const WORKER_URL="./qwen-worker-v1.10.js";
 let worker=null,seq=0,workerBroken=false;
 const pending=new Map();
 let mainPipePromise=null;
@@ -69,7 +69,7 @@ async function getMainPipe(status){
 async function runMain(prevSpec,userText,status){
   const generator=await getMainPipe(status);
   if(status)status.textContent="Qwen is interpreting your request…";
-  const result=await generator([{role:"system",content:buildSystem(prevSpec)},{role:"user",content:String(userText||"")}],{max_new_tokens:180,do_sample:false,return_full_text:false});
+  const result=await generator([{role:"system",content:buildSystem(prevSpec)},{role:"user",content:String(userText||"")}],{max_new_tokens:128,do_sample:false,return_full_text:false});
   return parseJSON(outputText(result));
 }
 async function qwenToSpec(prevSpec,userText,status){
