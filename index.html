@@ -102,6 +102,51 @@ button:disabled{opacity:.5;cursor:default;}
 .passwordToggle{position:absolute!important;right:6px;top:6px;width:36px!important;height:36px!important;min-height:36px;padding:0!important;border-radius:10px!important;background:transparent!important;color:var(--sub)!important;border:1px solid transparent!important;display:grid;place-items:center;font-size:18px!important}
 .passwordToggle:hover{background:var(--panel)!important;border-color:var(--line)!important;color:var(--text)!important}
 .passwordToggle svg{width:20px;height:20px;display:block;pointer-events:none}
+.aiChatShell{display:flex;flex-direction:column;min-height:calc(100vh - 110px);gap:12px}
+.aiChatHeader{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0}
+.aiChatTitle{font-size:1.05rem;font-weight:700}
+.aiChatHeader .modelSwitch{display:flex;gap:5px;margin:0}
+.aiChatHeader .modelChoice{min-width:82px;padding:8px 9px;font-size:.72rem}
+.aiChatHeader .modelChoice small{font-size:.62rem}
+.aiChatTools{display:flex;align-items:center;gap:7px}
+.aiChatTools .modelTimer{margin:0;padding:7px 9px}
+.aiChatTools .modelTimer>div:first-child span{display:none}
+.aiChatTools .modelTimes{font-size:.62rem}
+.aiWelcome{padding:22px 4px 8px;text-align:center}
+.aiWelcomeTitle{font-size:1.45rem;font-weight:750;margin-bottom:7px}
+.aiWelcomeText{max-width:520px;margin:0 auto;color:var(--sub);font-size:.9rem;line-height:1.45}
+.aiSuggestions{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;margin-top:14px}
+.aiSuggestion{width:auto;padding:9px 11px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:999px;font-size:.76rem}
+.chatMessages.g3dConversation{flex:1;max-height:none;overflow:auto;margin:0;padding:4px 1px 8px;display:flex;flex-direction:column;gap:14px}
+.chatMsgWrap{display:flex;width:100%}
+.chatMsgWrap.user{justify-content:flex-end}
+.chatMsgWrap.assistant{justify-content:flex-start}
+.chatMsg.g3dBubble{max-width:min(84%,620px);padding:11px 14px;border-radius:17px;font-size:.88rem;line-height:1.42;white-space:pre-wrap}
+.chatMsgWrap.user .g3dBubble{background:var(--accent);color:var(--accent-ink);border:none;border-bottom-right-radius:6px}
+.chatMsgWrap.assistant .g3dBubble{background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:6px}
+.g3dResultCard{margin-top:9px;width:min(100%,620px);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px}
+.g3dResultHead{font-size:.75rem;color:var(--sub);margin-bottom:8px}
+.g3dResultName{font-size:.88rem;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.g3dResultMeta{font-size:.72rem;color:var(--sub);margin-top:3px}
+.g3dResultActions{display:flex;gap:7px;margin-top:10px}
+.g3dResultActions button{width:auto;flex:1;padding:9px 10px;font-size:.78rem}
+.aiComposer{position:sticky;bottom:0;z-index:4;padding-top:6px;background:linear-gradient(to bottom,transparent,var(--bg) 12px)}
+.aiComposerBox{display:flex;align-items:flex-end;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:8px;box-shadow:0 5px 22px rgba(0,0,0,.08)}
+.aiComposerBox textarea{border:0;background:transparent;box-shadow:none;min-height:46px;max-height:150px;resize:none;padding:9px 10px;flex:1}
+.aiComposerBox textarea:focus{outline:none}
+.aiSend{width:auto;min-width:74px;padding:11px 14px;border-radius:13px}
+.aiNewDesign{width:auto;padding:9px 12px;border-radius:12px;background:transparent;color:var(--sub);border:1px solid var(--line);font-size:.76rem}
+.aiComposerHint{text-align:center;font-size:.67rem;color:var(--sub);margin-top:6px}
+@media(max-width:600px){
+ .aiChatShell{min-height:calc(100vh - 90px)}
+ .aiChatHeader{align-items:flex-start}
+ .aiChatTools .modelTimer{display:none}
+ .aiChatHeader .modelSwitch{flex-wrap:wrap;justify-content:flex-end}
+ .aiChatHeader .modelChoice{min-width:68px}
+ .chatMsg.g3dBubble{max-width:91%}
+ .aiSend{min-width:62px}
+}
+
 
 .btn-secondary{background:var(--field);color:var(--text);border:1px solid var(--line);}
 .status{margin-top:12px;font-size:.83rem;color:var(--sub);white-space:pre-line;min-height:1.2em;}.modelSwitch{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:0 0 8px;}
@@ -125,11 +170,11 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.32</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.33</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.32</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.33</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -253,44 +298,51 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.32</span></h1>
-  <p class="sub">Internal design tool. Describe any 3D object in plain language. The selected local model plans the geometry, then G3D builds the actual custom mesh. Simple geometry bypasses the model for instant results.</p>
-
-  <div class="card">
-    <p class="sectitle">AI model</p>
-    <div class="modelSwitch">
-      <button id="modelAI1" class="modelChoice active" type="button">AI 1<small>SmolLM2 360M</small></button>
-      <button id="modelAI2" class="modelChoice" type="button">AI 2<small>Gemma 3 270M IT</small></button>
-      <button id="modelAI3" class="modelChoice" type="button">AI 3<small>Qwen2.5 0.5B</small></button>
+  <div class="aiChatShell">
+    <div class="aiChatHeader">
+      <div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.33</span></div>
+        <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
+      </div>
+      <div class="aiChatTools">
+        <div class="modelSwitch">
+          <button id="modelAI1" class="modelChoice active" type="button">AI 1<small>SmolLM2</small></button>
+          <button id="modelAI2" class="modelChoice" type="button">AI 2<small>Gemma</small></button>
+          <button id="modelAI3" class="modelChoice" type="button">AI 3<small>Qwen</small></button>
+        </div>
+        <div class="modelTimer" aria-live="polite">
+          <div><span>Load</span><strong id="modelLoadTimer">—</strong></div>
+          <div class="modelTimes" id="modelTimes">AI 1 — · AI 2 — · AI 3 —</div>
+        </div>
+      </div>
     </div>
-    <div class="modelTimer" aria-live="polite">
-      <div><span>Load stopwatch</span><strong id="modelLoadTimer">Not timed yet</strong></div>
-      <div class="modelTimes" id="modelTimes">AI 1 — &nbsp; · &nbsp; AI 2 — &nbsp; · &nbsp; AI 3 —</div>
+
+    <div class="chatMessages g3dConversation" id="chatMessages"></div>
+
+    <div class="aiComposer">
+      <form id="aiComposerForm" class="aiComposerBox">
+        <textarea id="aiPrompt" placeholder="Message G3D AI… describe a model, ask for a change, or continue the design." rows="1"></textarea>
+        <button class="aiSend" id="aiSendBtn" type="submit">Send</button>
+      </form>
+      <div style="display:flex;justify-content:center;gap:7px;margin-top:7px;">
+        <button class="aiNewDesign" id="aiNewBtn" type="button">＋ New design</button>
+        <span class="aiComposerHint" style="padding-top:8px;">Enter to send · Shift+Enter for a new line</span>
+      </div>
+      <div class="status" id="aiStatus" style="text-align:center;min-height:1.05em;"></div>
     </div>
-    <p class="hint" id="modelHint" style="margin:0 0 12px;">Choose the local model used for custom designs.</p>
-    <p class="sectitle">Chat</p><div class="chatMessages" id="chatMessages"></div><p class="sectitle">Describe the part</p>
-    <textarea id="aiPrompt" placeholder="Describe anything you want to build... e.g. &quot;Make a phone stand with a 15° back, a front lip, and a cable slot.&quot;"></textarea>
-    <p class="hint" style="margin-top:8px;margin-bottom:0;">The selected model runs locally in your browser. Complex designs use the model; simple primitives are generated directly. Custom parts are built by G3D's procedural CSG engine.</p>
+
+    <div class="card" id="aiPreviewCard" style="display:none;">
+      <p class="sectitle">3D Preview</p>
+      <div id="aiPreviewWrap" style="width:100%;height:320px;border-radius:12px;overflow:hidden;background:var(--field);touch-action:none;"></div>
+      <div class="checkrow" style="margin-top:10px;"><input type="checkbox" id="aiWireToggle" checked><label for="aiWireToggle">Show wireframe</label></div>
+      <p class="hint" style="margin:0;">Drag to rotate, scroll or pinch to zoom.</p>
+    </div>
+
+    <div class="card" id="aiInfoCard" style="display:none;">
+      <p class="sectitle">Model details</p>
+      <div class="infoGrid" id="aiInfoGrid"></div>
+    </div>
   </div>
-
-  <button id="aiGenBtn">GENERATE STL</button>
-  <div style="height:8px;"></div>
-  <button id="aiNewBtn" class="btn-secondary">Start new design</button>
-  <div class="status" id="aiStatus"></div>
-
-  <div class="card" id="aiPreviewCard" style="display:none;">
-    <p class="sectitle">Preview</p>
-    <div id="aiPreviewWrap" style="width:100%;height:320px;border-radius:10px;overflow:hidden;background:var(--field);touch-action:none;"></div>
-    <div class="checkrow" style="margin-top:10px;"><input type="checkbox" id="aiWireToggle" checked><label for="aiWireToggle">Show wireframe</label></div>
-    <p class="hint" style="margin:0;">Drag to rotate, scroll or pinch to zoom.</p>
-  </div>
-
-  <div class="card" id="aiInfoCard" style="display:none;">
-    <p class="sectitle">Model info</p>
-    <div class="infoGrid" id="aiInfoGrid"></div>
-  </div>
-
-  <button id="aiDlBtn" class="btn-secondary" style="margin-top:12px;" disabled>DOWNLOAD STL</button>
 </div></div>
 
 </div>
@@ -505,9 +557,9 @@ async function generatePG(){
     document.getElementById('previewCard').style.display='';viewerPG.showMesh(tris);
     saveArtifact('Pattern Generator',lastFilenamePG,stl,triCount).then(saved=>{
       status.textContent='Generated '+triCount.toLocaleString()+' triangles.'+(saved?' Saved to Artifacts.':' Sign in to save it to Artifacts.');
-    }).catch(console.error);dlBtn.disabled=false;
+    }).catch(console.error);btn.disabled=false;
   }catch(err){console.error(err);status.textContent='Error: '+(err.message||err);}
-  btn.disabled=false;
+  btn.disabled=false;promptEl.value='';promptEl.style.height='auto';
 }
 document.getElementById('genBtn').addEventListener('click', generatePG);
 document.getElementById('dlBtn').addEventListener('click', ()=>{
@@ -724,10 +776,36 @@ function renderChats(){
 }
 function renderChat(){
   const x=getChat(),box=document.getElementById('chatMessages');
-  if(!x){box.innerHTML=isLoggedIn()?'':'<div class="chatEmpty">Guest session: chat history will not be saved. Sign in to keep your designs.</div>';return;}
-  box.innerHTML=x.messages.map(m=>'<div class="chatMsg '+(m.role==='user'?'user':'')+'">'+esc(m.text)+'</div>').join('');
+  if(!box)return;
+  if(!x){
+    box.innerHTML=`<div class="aiWelcome"><div class="aiWelcomeTitle">What are we building?</div><p class="aiWelcomeText">Describe a 3D model like you would talk to an AI assistant. G3D can create it, then you can keep chatting to change the same design.</p><div class="aiSuggestions"><button class="aiSuggestion" type="button" data-prompt="Make a 40 mm rounded cube">Rounded cube</button><button class="aiSuggestion" type="button" data-prompt="Make a 60 mm phone stand with a front lip and cable slot">Phone stand</button><button class="aiSuggestion" type="button" data-prompt="Make a hollow 50 mm sphere">Hollow sphere</button></div></div>`;
+    aiPrevSpec=null;return;
+  }
+  if(!x.messages.length){
+    box.innerHTML=`<div class="aiWelcome"><div class="aiWelcomeTitle">What are we building?</div><p class="aiWelcomeText">Describe a 3D model like you would talk to an AI assistant. G3D can create it, then you can keep chatting to change the same design.</p><div class="aiSuggestions"><button class="aiSuggestion" type="button" data-prompt="Make a 40 mm rounded cube">Rounded cube</button><button class="aiSuggestion" type="button" data-prompt="Make a 60 mm phone stand with a front lip and cable slot">Phone stand</button><button class="aiSuggestion" type="button" data-prompt="Make a hollow 50 mm sphere">Hollow sphere</button></div></div>`;
+  }else{
+    box.innerHTML=x.messages.map((m,i)=>{
+      const role=m.role==='user'?'user':'assistant';
+      const bubble='<div class="chatMsg g3dBubble">'+esc(m.text)+'</div>';
+      return '<div class="chatMsgWrap '+role+'">'+bubble+'</div>';
+    }).join('');
+  }
+  box.querySelectorAll('.aiSuggestion').forEach(b=>b.onclick=()=>{
+    const p=document.getElementById('aiPrompt');p.value=b.dataset.prompt;p.focus();
+  });
   box.scrollTop=box.scrollHeight;aiPrevSpec=x.spec||null;
 }
+function renderLastResultCard(){
+  const x=getChat(),box=document.getElementById('chatMessages');if(!x||!box)return;
+  const last=x.messages[x.messages.length-1];if(!last||!last.result)return;
+  const r=last.result;
+  const card=document.createElement('div');card.className='g3dResultCard';
+  card.innerHTML='<div class="g3dResultHead">3D MODEL READY</div><div class="g3dResultName">'+esc(r.filename)+'</div><div class="g3dResultMeta">'+Number(r.triangles||0).toLocaleString()+' triangles</div><div class="g3dResultActions"><button type="button" class="btn-secondary" data-result-action="preview">Open 3D preview</button><button type="button" class="btn-secondary" data-result-action="download">Download STL</button></div>';
+  const wrap=document.createElement('div');wrap.className='chatMsgWrap assistant';wrap.appendChild(card);box.appendChild(wrap);
+  card.querySelector('[data-result-action="preview"]').onclick=()=>document.getElementById('aiPreviewCard').scrollIntoView({behavior:'smooth',block:'center'});
+  card.querySelector('[data-result-action="download"]').onclick=()=>downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiSendBtn'),lastTrisAI,r.filename);
+}
+
 function addMessage(role,text){
   const x=getChat()||newChat();x.messages.push({role,time:Date.now(),text:String(text).slice(0,5000)});
   if(x.messages.length===1)x.title=String(text).replace(/\s+/g,' ').trim().slice(0,42)||'New design';
@@ -749,10 +827,10 @@ function nameFromSpec(spec){
   return `G3D_Custom_${pretty[first]||'Model'}_${Math.round(s)}mm`;
 }
 async function generateAI(){
-  const btn=document.getElementById('aiGenBtn'),dlBtn=document.getElementById('aiDlBtn'),status=document.getElementById('aiStatus'),promptEl=document.getElementById('aiPrompt');
+  const btn=document.getElementById('aiSendBtn'),status=document.getElementById('aiStatus'),promptEl=document.getElementById('aiPrompt');
   const text=promptEl.value.trim();
-  if(!text){status.textContent='Describe the part first.';return;}
-  btn.disabled=true;dlBtn.disabled=true;document.getElementById('aiInfoCard').style.display='none';addMessage('user',text);
+  if(!text){status.textContent='Tell me what you want to build.';return;}
+  btn.disabled=true;document.getElementById('aiInfoCard').style.display='none';addMessage('user',text);
   try{
     status.textContent='Qwen is planning the custom geometry locally...';
     const raw=await window.g3dQwenToSpec(aiPrevSpec,text,status),spec=mergeAISpec(raw,aiPrevSpec);
@@ -760,10 +838,17 @@ async function generateAI(){
     const key=JSON.stringify(spec),tris=await getMeshFromWorker(spec,spec.quality,key,'ai');
     if(!tris.length){status.textContent='The requested construction produced no printable surface. Try adjusting dimensions or the description.';btn.disabled=false;return;}
     aiPrevSpec=spec;lastTrisAI=tris;lastFilenameAI=nameFromSpec(spec).replace(/\s+/g,'_')+'.stl';
-    const x=getChat();if(x){x.spec=spec;x.messages.push({role:'assistant',text:'Generated '+spec.parts.length+' custom parts: '+lastFilenameAI,time:Date.now()});x.updated=Date.now();saveChats();renderChats();renderChat();}
+    const triCount=Math.floor(tris.length/12),stl=trisToSTL(tris);
     if(!viewerAI)viewerAI=await createViewer('aiPreviewWrap','aiWireToggle');
     document.getElementById('aiPreviewCard').style.display='';viewerAI.showMesh(tris);
-    const triCount=Math.floor(tris.length/12),stl=trisToSTL(tris);saveArtifact('G3D AI',lastFilenameAI,stl,triCount).catch(console.error);
+    const saved=await saveArtifact('G3D AI',lastFilenameAI,stl,triCount);
+    const partLabel=spec.parts.length===1?'part':'parts';
+    const reply='Done — I built '+spec.parts.length+' real geometric '+partLabel+'. We can keep refining this same design in the chat.';
+    const x=getChat();if(x){
+      x.spec=spec;
+      x.messages.push({role:'assistant',text:reply,time:Date.now(),result:{filename:lastFilenameAI,triangles:triCount,dimensions:meshStats(tris)}});
+      x.updated=Date.now();saveChats();renderChats();renderChat();
+    }
     const stats=meshStats(tris),grid=document.getElementById('aiInfoGrid'),modelInfo=window.g3dGetModelInfo?window.g3dGetModelInfo():{name:'Local model'};
     grid.innerHTML='<div><span>AI model</span>'+modelInfo.name+'</div><div><span>Geometry</span>'+spec.parts.length+' custom parts / CSG</div><div><span>File name</span>'+lastFilenameAI+'</div><div><span>Triangles</span>'+triCount.toLocaleString()+'</div><div><span>X dimension</span>'+stats.x.toFixed(1)+' mm</div><div><span>Y dimension</span>'+stats.y.toFixed(1)+' mm</div><div><span>Z dimension</span>'+stats.z.toFixed(1)+' mm</div><div><span>Approx. volume</span>'+(stats.volume/1000).toFixed(2)+' cm³</div>';
     document.getElementById('aiInfoCard').style.display='';
@@ -773,9 +858,14 @@ async function generateAI(){
   }catch(err){console.error(err);status.textContent='Error: '+(err.message||err);}
   btn.disabled=false;
 }
-document.getElementById('aiGenBtn').addEventListener('click',generateAI);
-document.getElementById('aiNewBtn').addEventListener('click',function(){newChat();});
-document.getElementById('aiDlBtn').addEventListener('click',()=>downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiDlBtn'),lastTrisAI,lastFilenameAI));
+const aiComposerForm=document.getElementById('aiComposerForm'),aiPromptEl=document.getElementById('aiPrompt'),aiSendBtn=document.getElementById('aiSendBtn');
+aiComposerForm.addEventListener('submit',e=>{e.preventDefault();generateAI();});
+aiPromptEl.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiComposerForm.requestSubmit();}
+});
+aiPromptEl.addEventListener('input',()=>{aiPromptEl.style.height='auto';aiPromptEl.style.height=Math.min(aiPromptEl.scrollHeight,150)+'px';});
+document.getElementById('aiNewBtn').addEventListener('click',function(){newChat();aiPromptEl.focus();});
+
 
 // ================= Account UI + persistence gating =================
 const authModal=document.getElementById('authModal'),authOpenBtn=document.getElementById('authOpenBtn'),authSignOutBtn=document.getElementById('authSignOutBtn');
