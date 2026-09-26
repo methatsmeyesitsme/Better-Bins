@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>G3D Design Suite</title>
 <style>
-.authModal{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:60;display:none;align-items:center;justify-content:center;padding:20px}.authModal.open{display:flex}.authBox{width:min(430px,100%);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 12px 50px rgba(0,0,0,.2)}.authTabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px}.authTab{padding:10px;background:var(--field);color:var(--sub);border:1px solid var(--line);border-radius:10px}.authTab.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}.authMsg{font-size:.8rem;color:var(--sub);min-height:1.2em;white-space:pre-line;margin-top:9px}.g3dAccountBadge{font-size:.68rem;color:var(--sub);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 7px;white-space:nowrap}.accountActions{display:flex;gap:8px}.accountActions button{width:auto;flex:1}.keyRow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.keyActions{display:flex;gap:8px;margin-top:9px}.keyActions button{width:auto;flex:1}
+.authModal{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:60;display:none;align-items:center;justify-content:center;padding:20px}.authModal.open{display:flex}.authBox{width:min(480px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 12px 50px rgba(0,0,0,.2)}.authTabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.authTab{padding:12px;background:var(--field);color:var(--sub);border:1px solid var(--line);border-radius:12px}.authTab.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}.authMsg{font-size:.8rem;color:var(--sub);min-height:1.2em;white-space:pre-line;margin-top:9px}.g3dAccountBadge{font-size:.68rem;color:var(--sub);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 7px;white-space:nowrap}.accountActions{display:flex;gap:8px}.accountActions button{width:auto;flex:1}.keyRow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.keyActions{display:flex;gap:8px;margin-top:9px}.keyActions button{width:auto;flex:1}
 :root{
   --bg:#f6f5f2; --panel:#ffffff; --text:#1c1b19; --sub:#6b6863; --line:#e3e0da;
   --accent:#a8501f; --accent-ink:#ffffff; --field:#faf9f6;
@@ -89,6 +89,20 @@ button{
   font-size:.95rem;font-weight:600;cursor:pointer;
 }
 button:disabled{opacity:.5;cursor:default;}
+.authBox input[type=email],.authBox input[type=text],.authBox input[type=password],
+.settingsPanel input[type=email],.settingsPanel input[type=text],.settingsPanel input[type=password]{
+  width:100%;height:48px;padding:12px 14px;border-radius:13px;border:1px solid var(--line);
+  background:var(--field);color:var(--text);font-size:.97rem;font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s;
+}
+.authBox input[type=email]:focus,.authBox input[type=text]:focus,.authBox input[type=password]:focus,
+.settingsPanel input[type=email]:focus,.settingsPanel input[type=text]:focus,.settingsPanel input[type=password]:focus{
+  border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent);
+}
+.passwordField{position:relative;width:100%}.passwordField input{padding-right:52px!important}
+.passwordToggle{position:absolute!important;right:6px;top:6px;width:36px!important;height:36px!important;min-height:36px;padding:0!important;border-radius:10px!important;background:transparent!important;color:var(--sub)!important;border:1px solid transparent!important;display:grid;place-items:center;font-size:18px!important}
+.passwordToggle:hover{background:var(--panel)!important;border-color:var(--line)!important;color:var(--text)!important}
+.passwordToggle svg{width:20px;height:20px;display:block;pointer-events:none}
+
 .btn-secondary{background:var(--field);color:var(--text);border:1px solid var(--line);}
 .status{margin-top:12px;font-size:.83rem;color:var(--sub);white-space:pre-line;min-height:1.2em;}.modelSwitch{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:0 0 8px;}
 .modelTimer{border:1px solid var(--line);background:var(--field);border-radius:10px;padding:9px 10px;margin:0 0 10px;font-size:.74rem;color:var(--sub);}
@@ -113,11 +127,11 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.30</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.31</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.30</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.31</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -146,10 +160,17 @@ button:disabled{opacity:.5;cursor:default;}
   </div>
 </section>
 <section class="authModal" id="authModal" aria-hidden="true"><div class="authBox">
-  <div class="settingsTop" style="margin-bottom:12px;"><div><h1 style="margin:0;">G3D Account</h1><p class="sub" style="margin:4px 0 0;">Your chats and artifacts are saved only to your account.</p></div><button class="settingsClose" id="authClose">×</button></div>
+  <div class="settingsTop" style="margin-bottom:16px;"><div><h1 style="margin:0;">G3D Account</h1><p class="sub" style="margin:5px 0 0;">Your chats and artifacts are saved only to your account.</p></div><button class="settingsClose" id="authClose">×</button></div>
   <div class="authTabs"><button class="authTab active" id="authTabLogin" type="button">Sign in</button><button class="authTab" id="authTabSignup" type="button">Create account</button></div>
-  <form id="authLoginForm"><div class="row single"><div><label for="loginEmail">Email</label><input id="loginEmail" type="email" required autocomplete="email"></div><div><label for="loginPassword">Password</label><input id="loginPassword" type="password" required autocomplete="current-password"></div></div><button type="submit">Sign in</button><div class="authMsg" id="loginMsg"></div><button type="button" class="btn-secondary" id="forgotPasswordBtn" style="margin-top:8px;">Email me a password-reset link</button></form>
-  <form id="authSignupForm" style="display:none;"><div class="row single"><div><label for="signupUsername">Username</label><input id="signupUsername" type="text" required maxlength="40" autocomplete="username"></div><div><label for="signupEmail">Email</label><input id="signupEmail" type="email" required autocomplete="email"></div><div><label for="signupPassword">Password</label><input id="signupPassword" type="password" required minlength="8" autocomplete="new-password"></div></div><button type="submit">Create account</button><div class="authMsg" id="signupMsg"></div></form>
+  <form id="authLoginForm"><div class="row single">
+    <div><label for="loginEmail">Email</label><input id="loginEmail" type="email" required autocomplete="email"></div>
+    <div><label for="loginPassword">Password</label><div class="passwordField"><input id="loginPassword" type="password" required autocomplete="current-password"><button class="passwordToggle" type="button" data-target="loginPassword" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.8"/></svg></button></div></div>
+  </div><button type="submit">Sign in</button><div class="authMsg" id="loginMsg"></div><button type="button" class="btn-secondary" id="forgotPasswordBtn" style="margin-top:8px;">Email me a password-reset link</button></form>
+  <form id="authSignupForm" style="display:none;"><div class="row single">
+    <div><label for="signupUsername">Username</label><input id="signupUsername" type="text" required maxlength="40" autocomplete="username"></div>
+    <div><label for="signupEmail">Email</label><input id="signupEmail" type="email" required autocomplete="email"></div>
+    <div><label for="signupPassword">Password</label><div class="passwordField"><input id="signupPassword" type="password" required minlength="8" autocomplete="new-password"><button class="passwordToggle" type="button" data-target="signupPassword" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.8"/></svg></button></div></div>
+  </div><button type="submit">Create account</button><div class="authMsg" id="signupMsg"></div></form>
 </div></section>
 <aside class="chatDrawer" id="chatDrawer"><div class="chatHead"><strong>G3D AI Chats</strong><button class="chatClose" id="chatClose">×</button></div><div id="drawerAccountState" class="hint" style="padding:0 16px;margin:0 0 10px;">Guest: chats will not be saved.</div><button class="newChat" id="newChatBtn">+ New chat</button><button class="settingsBtn btn-secondary" id="settingsBtn">Settings</button><div class="chatList" id="chatList"></div></aside>
 <div class="tabs">
@@ -234,7 +255,7 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.30</span></h1>
+  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.31</span></h1>
   <p class="sub">Internal design tool. Describe any 3D object in plain language. The selected local model plans the geometry, then G3D builds the actual custom mesh. Simple geometry bypasses the model for instant results.</p>
 
   <div class="card">
@@ -819,6 +840,20 @@ clearApiKeyBtn.onclick=()=>{
   if(!isLoggedIn()){apiKeyStatus.textContent='Sign in first.';return;}
   window.g3dAuth.clearApiKey();apiKeyInput.value='';apiPassword.value='';apiKeyStatus.textContent='Saved API key cleared from this device.';
 };
+
+// Password visibility toggles
+document.querySelectorAll('.passwordToggle').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const input=document.getElementById(btn.dataset.target);if(!input)return;
+    const shown=input.type==='password';input.type=shown?'text':'password';
+    btn.setAttribute('aria-label',shown?'Hide password':'Show password');
+    btn.setAttribute('aria-pressed',shown?'true':'false');
+    btn.innerHTML=shown
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3l18 18"/><path d="M10.6 6.1A10.5 10.5 0 0 1 12 6c6 0 9.5 6 9.5 6a18.7 18.7 0 0 1-3.1 3.9"/><path d="M6.1 6.9C3.6 8.2 2.5 12 2.5 12s3.5 6 9.5 6c1.1 0 2.2-.2 3.1-.5"/><path d="M9.9 9.9A2.8 2.8 0 0 0 12 15"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.8"/></svg>';
+  });
+});
+
 // ================= Tab / swipe navigation =================
 const track = document.getElementById('track');
 const tabPG = document.getElementById('tabPG');
