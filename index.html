@@ -95,11 +95,11 @@ button:disabled{opacity:.5;cursor:default;}
 .infoGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:.85rem;}
 .infoGrid div span{display:block;color:var(--sub);font-size:.72rem;}
 </style>
-<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>\n<script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.16</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.17</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
@@ -309,7 +309,9 @@ async function createViewer(wrapId,wireToggleId){
     if(v.meshObj){scene.remove(v.meshObj);v.meshObj.geometry.dispose();v.meshObj.material.dispose();v.meshObj.children.forEach(ch=>{ch.geometry.dispose();ch.material.dispose();});}
     const triCount=Math.floor(tris.length/12),positions=new Float32Array(triCount*9);
     for(let i=0;i<triCount;i++){const s=i*12,o=i*9;positions[o]=tris[s+3];positions[o+1]=tris[s+4];positions[o+2]=tris[s+5];positions[o+3]=tris[s+6];positions[o+4]=tris[s+7];positions[o+5]=tris[s+8];positions[o+6]=tris[s+9];positions[o+7]=tris[s+10];positions[o+8]=tris[s+11];}
-    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3));geo.computeVertexNormals();geo.computeBoundingSphere();
+    const normals=new Float32Array(triCount*9);
+    for(let i=0;i<triCount;i++){const s=i*12,o=i*9;normals[o]=tris[s];normals[o+1]=tris[s+1];normals[o+2]=tris[s+2];normals[o+3]=tris[s];normals[o+4]=tris[s+1];normals[o+5]=tris[s+2];normals[o+6]=tris[s];normals[o+7]=tris[s+1];normals[o+8]=tris[s+2];}
+    const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(positions,3));geo.setAttribute('normal',new THREE.BufferAttribute(normals,3));geo.computeBoundingSphere();
     const mat=new THREE.MeshStandardMaterial({color:0xa8501f,flatShading:true,side:THREE.DoubleSide,roughness:0.6,metalness:0.05}),meshObj=new THREE.Mesh(geo,mat);
     if(triCount<20000){const wg=new THREE.WireframeGeometry(geo),wm=new THREE.LineBasicMaterial({color:0x2a1608,transparent:true,opacity:0.35}),wl=new THREE.LineSegments(wg,wm);wl.visible=document.getElementById(wireToggleId).checked;meshObj.userData.wire=wl;meshObj.add(wl);}
     scene.add(meshObj);v.meshObj=meshObj;const bs=geo.boundingSphere;v.target=[bs.center.x,bs.center.y,bs.center.z];v.spherical.radius=Math.max(bs.radius*2.6,20);updateCamera();
@@ -547,7 +549,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.16.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.17.js');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
