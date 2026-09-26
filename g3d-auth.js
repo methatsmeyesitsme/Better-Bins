@@ -37,8 +37,7 @@
   }
   async function signUp(username,email,password){
     if(!client)throw new Error('G3D authentication is not configured yet.');
-    const redirect=window.location.origin+window.location.pathname;
-    const r=await client.auth.signUp({email,password,options:{data:{username:String(username).trim().slice(0,40)},emailRedirectTo:redirect}});
+    const r=await client.auth.signUp({email,password,options:{data:{username:String(username).trim().slice(0,40)}}});
     if(r.error)throw r.error;
     user=r.data&&r.data.user||null; publish(); return r.data;
   }
