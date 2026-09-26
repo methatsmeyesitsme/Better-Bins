@@ -69,12 +69,12 @@ async function qwenToSpec(prevSpec, userText, status) {
   });
 
   const system = [
-    "You are G3D's local geometry planner.",
+    "You are G3D's local 3D geometry planner.",
     "Return ONLY one valid JSON object. No explanation and no markdown.",
-    'Schema: {"primary":{"shape":"cube"|"sphere"|"cylinder"|"ring","size":number,"diameter":number,"height":number,"outerDiameter":number,"tubeDiameter":number,"rounded":boolean,"cornerRadius":number},"secondary":null|{"shape":"cube"|"sphere"|"cylinder"|"ring","size":number,"diameter":number,"height":number,"outerDiameter":number,"tubeDiameter":number,"op":"union"|"subtract"},"pattern":"gyroid"|"schwarzp"|"diamond","periods":number,"thickness":number}',
-    "Preserve the current design unless the user asks to change it.",
-    "Use secondary only for a clearly requested hole/cutout or fused second primitive.",
-    "Numbers are millimeters except periods.",
+    "Build arbitrary designs from multiple real solids using CSG.",
+    'Schema: {"parts":[{"type":"box|roundedBox|sphere|cylinder|tube|cone|torus|capsule|prism","op":"union|subtract|intersect","position":[x,y,z],"rotation":[xDeg,yDeg,zDeg],"scale":[x,y,z],"size":[x,y,z],"radius":number,"radius2":number,"height":number,"outerRadius":number,"innerRadius":number,"majorRadius":number,"minorRadius":number,"length":number,"depth":number,"points":[[x,y],...]}],"pattern":"none|gyroid|schwarzp|diamond","periods":number,"thickness":number,"quality":number}',
+    "Use multiple parts for complex objects. Use prism for custom 2D outlines. Use subtract parts for holes and cutouts. Use rotation and position to place features.",
+    "Do not force an unknown design into a cube, sphere, cylinder, or ring. Keep the requested structure.",
     "Current design: " + current
   ].join("\n");
 
