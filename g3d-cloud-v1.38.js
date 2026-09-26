@@ -89,6 +89,13 @@
   function extractAnthropic(data){
     return Array.isArray(data&&data.content)?data.content.map(x=>x.text||'').join(''):'';
   }
+  async function geminiRequest(model,apiKey,system,contents,maxTokens){
+    const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent';
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},
+      body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:maxTokens}})});
+    let data=null;try{data=await res.json();}catch(e){}
+    return {res,data,text:extractGemini(data)};
+  }
   async function callProvider(p,apiKey,system,history,userText,maxTokens){
     const historyText=historyMessages(history);
     let res,data,text='';
@@ -97,9 +104,24 @@
         role:m.role==='assistant'?'model':'user',
         parts:[{text:String(m.content||'')}]
       }));
-      res=await fetch(p.url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},
-        body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:maxTokens}})});
-      data=await res.json();text=extractGemini(data);
+      let result=await geminiRequest(p.model,apiKey,system,contents,maxTokens);
+      if(!result.res.ok && result.res.status===503){
+        await new Promise(r=>setTimeout(r,450));
+        result=await geminiRequest(p.model,apiKey,system,contents,maxTokens);
+      }
+      if(!result.res.ok && result.res.status===503){
+        const fallback='gemini-3.7-flash';
+        result=await geminiRequest(fallback,apiKey,system,contents,maxTokens);
+        if(result.res.ok){
+          text=result.text;
+        }else{
+          const msg=result.data&&result.data.error&&(result.data.error.message||result.data.error.type);
+          throw new Error('Google Gemini is temporarily busy on both models (last error '+result.res.status+'): '+(msg||'Request failed.'));
+        }
+      }else{
+        res=result.res;data=result.data;text=result.text;
+      }
+      res=result.res;data=result.data;
     }else if(p.kind==='anthropic'){
       res=await fetch(p.url,{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({model:p.model,max_tokens:maxTokens,system,messages:[...historyText,{role:'user',content:String(userText||'')}].map(m=>({role:m.role,content:m.content}))})});
