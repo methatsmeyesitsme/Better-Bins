@@ -24,6 +24,25 @@
 *{box-sizing:border-box;}
 html,body{height:100%;}
 body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;}
+.g3dTop{position:fixed;left:12px;top:10px;z-index:20;display:flex;align-items:center;gap:8px;}
+.g3dMenuBtn{width:42px;height:42px;padding:0;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:12px;font-size:20px;box-shadow:0 2px 10px rgba(0,0,0,.06);}
+.g3dVersion{font-size:.7rem;color:var(--sub);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 7px;}
+.chatDrawer{position:fixed;inset:0 auto 0 0;width:min(330px,88vw);background:var(--panel);border-right:1px solid var(--line);z-index:30;transform:translateX(-102%);transition:transform .18s ease;box-shadow:8px 0 30px rgba(0,0,0,.12);display:flex;flex-direction:column;}
+.chatDrawer.open{transform:translateX(0);}
+.chatHead{padding:18px 16px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
+.chatClose{width:36px;height:36px;padding:0;background:var(--field);color:var(--text);border:1px solid var(--line);}
+.newChat{margin:12px 16px;width:auto;}
+.chatList{overflow:auto;padding:0 10px 16px;flex:1;}
+.chatItem{display:flex;align-items:center;width:100%;padding:11px 10px;margin:3px 0;background:transparent;color:var(--text);border:1px solid transparent;border-radius:10px;text-align:left;font-size:.86rem;}
+.chatItem.active{background:var(--field);border-color:var(--line);}
+.chatItem span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.chatEmpty{padding:18px 8px;color:var(--sub);font-size:.82rem;}
+.drawerShade{position:fixed;inset:0;background:rgba(0,0,0,.22);z-index:25;display:none;}
+.drawerShade.show{display:block;}
+.chatMessages{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;max-height:300px;overflow:auto;}
+.chatMsg{padding:10px 12px;border-radius:12px;background:var(--field);border:1px solid var(--line);font-size:.84rem;white-space:pre-wrap;}
+.chatMsg.user{border-color:var(--accent);}
+.aiPerf{font-size:.72rem;color:var(--sub);margin-top:8px;}
 .tabs{display:flex;gap:6px;justify-content:center;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;background:var(--bg);position:sticky;top:0;z-index:5;}
 .tab{padding:7px 16px;border-radius:20px;font-size:.82rem;font-weight:600;color:var(--sub);cursor:pointer;border:1px solid var(--line);background:var(--panel);}
 .tab.active{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);}
@@ -61,6 +80,9 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.01</span></div>
+<div class="drawerShade" id="drawerShade"></div>
+<aside class="chatDrawer" id="chatDrawer"><div class="chatHead"><strong>G3D AI Chats</strong><button class="chatClose" id="chatClose">×</button></div><button class="newChat" id="newChatBtn">+ New chat</button><div class="chatList" id="chatList"></div></aside>
 <div class="tabs">
   <div class="tab active" id="tabPG">Pattern Generator</div>
   <div class="tab" id="tabAI">G3D AI</div>
@@ -143,11 +165,11 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI</h1>
+  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.01</span></h1>
   <p class="sub">Internal design tool. Describe any 3D object in plain language. Qwen creates a multi-part geometry plan, then G3D builds the actual custom mesh locally. No API key, nothing leaves this page.</p>
 
   <div class="card">
-    <p class="sectitle">Describe the part</p>
+    <p class="sectitle">Chat</p><div class="chatMessages" id="chatMessages"></div><p class="sectitle">Describe the part</p>
     <textarea id="aiPrompt" placeholder="Describe anything you want to build... e.g. &quot;Make a phone stand with a 15° back, a front lip, and a cable slot.&quot;"></textarea>
     <p class="hint" style="margin-top:8px;margin-bottom:0;">Qwen runs locally in your browser and plans the geometry. The model loads only when you generate your first AI design. Custom parts are built by G3D's procedural CSG engine.</p>
   </div>
@@ -647,7 +669,7 @@ document.getElementById('dlBtn').addEventListener('click', ()=>{
 // ================= View 2: G3D AI (natural-language -> arbitrary geometry spec -> real mesh) =================
 function clamp(v,lo,hi){ return Math.min(hi,Math.max(lo,v)); }
 function defaultSpec(){
-  return {parts:[{type:'roundedBox',size:[40,40,40],radius:5,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:'union'}],pattern:'none',periods:2.5,thickness:1.5,quality:44};
+  return {parts:[{type:'roundedBox',size:[40,40,40],radius:5,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:'union'}],pattern:'none',periods:2.5,thickness:1.5,quality:32};
 }
 const VALID_PARTS=['box','roundedBox','sphere','cylinder','tube','cone','torus','capsule','prism'];
 function num(v,d){return typeof v==='number'&&isFinite(v)?v:d;}
@@ -679,7 +701,7 @@ function normalizeSpec(spec){
   s.pattern=['none','gyroid','schwarzp','diamond'].includes(s.pattern)?s.pattern:'none';
   s.periods=clamp(num(s.periods,2.5),0.5,12);
   s.thickness=clamp(num(s.thickness,1.5),0.2,12);
-  s.quality=clamp(Math.round(num(s.quality,44)),24,72);
+  s.quality=clamp(Math.round(num(s.quality,32)),24,48);
   return s;
 }
 function mergeAISpec(raw,prev){
@@ -760,6 +782,38 @@ let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
 
+const CHAT_KEY='g3d_ai_chats_v1';
+let chats=[],activeChatId=null;
+function esc(s){return String(s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
+function saveChats(){try{localStorage.setItem(CHAT_KEY,JSON.stringify(chats));}catch(e){}}
+function getChat(){return chats.find(function(x){return x.id===activeChatId;})||null;}
+function newChat(){
+  const x={id:'c_'+Date.now(),title:'New design',messages:[],spec:null,updated:Date.now()};
+  chats.unshift(x);activeChatId=x.id;saveChats();renderChats();renderChat();return x;
+}
+function renderChats(){
+  const el=document.getElementById('chatList');
+  el.innerHTML=chats.length?chats.map(function(x){return '<button class="chatItem '+(x.id===activeChatId?'active':'')+'" data-id="'+x.id+'"><span>'+esc(x.title)+'</span></button>';}).join(''):'<div class="chatEmpty">Saved chats appear here.</div>';
+  el.querySelectorAll('.chatItem').forEach(function(b){b.onclick=function(){activeChatId=b.dataset.id;const x=getChat();aiPrevSpec=x&&x.spec||null;renderChats();renderChat();closeDrawer();};});
+}
+function renderChat(){
+  const x=getChat(),box=document.getElementById('chatMessages');
+  if(!x){box.innerHTML='';return;}
+  box.innerHTML=x.messages.map(function(m){return '<div class="chatMsg '+(m.role==='user'?'user':'')+'">'+esc(m.text)+'</div>';}).join('');
+  box.scrollTop=box.scrollHeight;document.getElementById('aiPrompt').value='';aiPrevSpec=x.spec||null;
+}
+function addMessage(role,text){
+  const x=getChat()||newChat();x.messages.push({role:role,text:String(text).slice(0,5000),time:Date.now()});
+  if(x.messages.length===1){x.title=String(text).replace(/\s+/g,' ').trim().slice(0,42)||'New design';}
+  x.updated=Date.now();chats.sort(function(a,b){return b.updated-a.updated;});activeChatId=x.id;saveChats();renderChats();renderChat();
+}
+function openDrawer(){document.getElementById('chatDrawer').classList.add('open');document.getElementById('drawerShade').classList.add('show');}
+function closeDrawer(){document.getElementById('chatDrawer').classList.remove('open');document.getElementById('drawerShade').classList.remove('show');}
+document.getElementById('chatMenuBtn').onclick=openDrawer;document.getElementById('chatClose').onclick=closeDrawer;document.getElementById('drawerShade').onclick=closeDrawer;
+document.getElementById('newChatBtn').onclick=function(){newChat();closeDrawer();};
+try{chats=JSON.parse(localStorage.getItem(CHAT_KEY)||'[]');}catch(e){chats=[];}if(!Array.isArray(chats))chats=[];if(!chats.length)newChat();else{activeChatId=chats[0].id;renderChats();renderChat();}
+
+
 function nameFromSpec(spec){
   const types=spec.parts.map(p=>p.type);
   const first=types[0]||'Model';
@@ -772,7 +826,7 @@ async function generateAI(){
   const btn=document.getElementById('aiGenBtn'),dlBtn=document.getElementById('aiDlBtn'),status=document.getElementById('aiStatus'),promptEl=document.getElementById('aiPrompt');
   const text=promptEl.value.trim();
   if(!text){status.textContent='Describe the part first.';return;}
-  btn.disabled=true;dlBtn.disabled=true;document.getElementById('aiInfoCard').style.display='none';
+  btn.disabled=true;dlBtn.disabled=true;document.getElementById('aiInfoCard').style.display='none';addMessage('user',text);
   let spec=null,usedAI=false;
   try{
     status.textContent='Qwen is planning the custom geometry locally...';
@@ -791,7 +845,7 @@ async function generateAI(){
     await new Promise(r=>setTimeout(r,30));
     const tris=generateMesh(field,spec.quality,bmin,bmax);
     if(!tris.length){status.textContent='The requested construction produced no printable surface. Try adjusting dimensions or the description.';btn.disabled=false;return;}
-    aiPrevSpec=spec;lastTrisAI=tris;lastFilenameAI=nameFromSpec(spec).replace(/\s+/g,'_')+'.stl';
+    aiPrevSpec=spec;lastTrisAI=tris;lastFilenameAI=nameFromSpec(spec).replace(/\s+/g,'_')+'.stl';const x=getChat();if(x){x.spec=spec;x.messages.push({role:'assistant',text:'Generated '+spec.parts.length+' custom parts: '+lastFilenameAI,time:Date.now()});x.updated=Date.now();saveChats();renderChats();renderChat();}
     if(!viewerAI)viewerAI=createViewer('aiPreviewWrap','aiWireToggle');
     document.getElementById('aiPreviewCard').style.display='';viewerAI.showMesh(tris);
     const stats=meshStats(tris),grid=document.getElementById('aiInfoGrid');
@@ -811,11 +865,7 @@ async function generateAI(){
   btn.disabled=false;
 }
 document.getElementById('aiGenBtn').addEventListener('click',generateAI);
-document.getElementById('aiNewBtn').addEventListener('click',()=>{
-  aiPrevSpec=null;document.getElementById('aiPrompt').value='';
-  document.getElementById('aiStatus').textContent='Started a new custom design — previous geometry cleared.';
-  document.getElementById('aiInfoCard').style.display='none';
-});
+document.getElementById('aiNewBtn').addEventListener('click',function(){newChat();});
 document.getElementById('aiDlBtn').addEventListener('click',()=>downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiDlBtn'),lastTrisAI,lastFilenameAI));
 // ================= Tab / swipe navigation =================
 const track = document.getElementById('track');
