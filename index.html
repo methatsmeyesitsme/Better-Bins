@@ -113,11 +113,11 @@ button:disabled{opacity:.5;cursor:default;}
 <script type="module" src="./qwen.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.29</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn">☰</button><span class="g3dVersion">G3D v1.30</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.29</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.30</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -145,6 +145,12 @@ button:disabled{opacity:.5;cursor:default;}
     </div>
   </div>
 </section>
+<section class="authModal" id="authModal" aria-hidden="true"><div class="authBox">
+  <div class="settingsTop" style="margin-bottom:12px;"><div><h1 style="margin:0;">G3D Account</h1><p class="sub" style="margin:4px 0 0;">Your chats and artifacts are saved only to your account.</p></div><button class="settingsClose" id="authClose">×</button></div>
+  <div class="authTabs"><button class="authTab active" id="authTabLogin" type="button">Sign in</button><button class="authTab" id="authTabSignup" type="button">Create account</button></div>
+  <form id="authLoginForm"><div class="row single"><div><label for="loginEmail">Email</label><input id="loginEmail" type="email" required autocomplete="email"></div><div><label for="loginPassword">Password</label><input id="loginPassword" type="password" required autocomplete="current-password"></div></div><button type="submit">Sign in</button><div class="authMsg" id="loginMsg"></div><button type="button" class="btn-secondary" id="forgotPasswordBtn" style="margin-top:8px;">Email me a password-reset link</button></form>
+  <form id="authSignupForm" style="display:none;"><div class="row single"><div><label for="signupUsername">Username</label><input id="signupUsername" type="text" required maxlength="40" autocomplete="username"></div><div><label for="signupEmail">Email</label><input id="signupEmail" type="email" required autocomplete="email"></div><div><label for="signupPassword">Password</label><input id="signupPassword" type="password" required minlength="8" autocomplete="new-password"></div></div><button type="submit">Create account</button><div class="authMsg" id="signupMsg"></div></form>
+</div></section>
 <aside class="chatDrawer" id="chatDrawer"><div class="chatHead"><strong>G3D AI Chats</strong><button class="chatClose" id="chatClose">×</button></div><div id="drawerAccountState" class="hint" style="padding:0 16px;margin:0 0 10px;">Guest: chats will not be saved.</div><button class="newChat" id="newChatBtn">+ New chat</button><button class="settingsBtn btn-secondary" id="settingsBtn">Settings</button><div class="chatList" id="chatList"></div></aside>
 <div class="tabs">
   <div class="tab active" id="tabPG">Pattern Generator</div>
@@ -228,7 +234,7 @@ button:disabled{opacity:.5;cursor:default;}
 </div></div>
 
 <div class="view" id="view-ai"><div class="wrap">
-  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.29</span></h1>
+  <h1>G3D AI <span style="font-size:.68rem;color:var(--sub);font-weight:500;">v1.30</span></h1>
   <p class="sub">Internal design tool. Describe any 3D object in plain language. The selected local model plans the geometry, then G3D builds the actual custom mesh. Simple geometry bypasses the model for instant results.</p>
 
   <div class="card">
@@ -791,7 +797,7 @@ function refreshAccountUi(){
   accountBadge.textContent=u?name:'Guest';accountState.textContent=u?('Signed in as '+name+'. Your chats and artifacts can now be saved.'):((window.g3dAuth&&window.g3dAuth.configured)?'Not signed in. Chats and artifacts are not saved.':'Authentication backend is not connected yet. Chats and artifacts are not saved.');
   drawerAccountState.textContent=u?('Signed in as '+name+'. Chat history is saved.'): 'Guest: chats will not be saved.';
   authOpenBtn.style.display=u?'none':'block';authSignOutBtn.style.display=u?'block':'none';
-  authSetupHint.textContent=(!u && !(window.g3dAuth&&window.g3dAuth.configured))?'To activate accounts, put your Supabase public URL and anon/publishable key in g3d-auth-config.js, then enable email/password auth and email confirmation in Supabase.':'';
+  authSetupHint.textContent=(!u && !(window.g3dAuth&&window.g3dAuth.configured))?'To activate accounts, put your Supabase public URL and anon/publishable key in g3d-auth-config.js, then enable email/password auth in Supabase.':'';
   const vault=window.g3dAuth&&window.g3dAuth.apiVaultStatus?window.g3dAuth.apiVaultStatus():{saved:false,unlocked:false};
   apiKeyStatus.textContent=!u?'Sign in to store an API key.':(vault.saved?(vault.unlocked?'Saved key is unlocked for this session.':'Saved key exists on this device. Enter your password and unlock it.'):'No API key saved for this account on this device.');
   renderChats();renderChat();loadUserArtifacts();
@@ -868,10 +874,5 @@ viewport.addEventListener('pointerup', endDrag);
 viewport.addEventListener('pointercancel', endDrag);
 viewport.addEventListener('pointerleave', endDrag);
 </script>
-<section class="authModal" id="authModal" aria-hidden="true"><div class="authBox">
-  <div class="settingsTop" style="margin-bottom:12px;"><div><h1 style="margin:0;">G3D Account</h1><p class="sub" style="margin:4px 0 0;">Your chats and artifacts are saved only to your account.</p></div><button class="settingsClose" id="authClose">×</button></div>
-  <div class="authTabs"><button class="authTab active" id="authTabLogin" type="button">Sign in</button><button class="authTab" id="authTabSignup" type="button">Create account</button></div>
-  <form id="authLoginForm"><div class="row single"><div><label for="loginEmail">Email</label><input id="loginEmail" type="email" required autocomplete="email"></div><div><label for="loginPassword">Password</label><input id="loginPassword" type="password" required autocomplete="current-password"></div></div><button type="submit">Sign in</button><div class="authMsg" id="loginMsg"></div><button type="button" class="btn-secondary" id="forgotPasswordBtn" style="margin-top:8px;">Email me a password-reset link</button></form>
-  <form id="authSignupForm" style="display:none;"><div class="row single"><div><label for="signupUsername">Username</label><input id="signupUsername" type="text" required maxlength="40" autocomplete="username"></div><div><label for="signupEmail">Email</label><input id="signupEmail" type="email" required autocomplete="email"></div><div><label for="signupPassword">Password</label><input id="signupPassword" type="password" required minlength="8" autocomplete="new-password"></div></div><button type="submit">Create account</button><div class="authMsg" id="signupMsg"></div></form>
-</div></section></body>
+</body>
 </html>
