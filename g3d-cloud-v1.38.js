@@ -260,14 +260,6 @@ async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stre
       }));
       let result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta,onUsage,jsonMode});
       if(result.res.ok&&!result.text.trim())result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:false,onDelta:null,onUsage,jsonMode});
-      if(!result.res.ok && result.res.status===503){
-        await sleep(250,signal);
-        result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta});
-      }
-      if(!result.res.ok && result.res.status===503){
-        const fallback='gemini-3.7-flash';
-        result=await geminiRequest(fallback,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta,onUsage,jsonMode});
-      }
       res=result.res;data=result.data;text=result.text;
     }else if(p.kind==='anthropic'){
       res=await fetch(p.url,{method:'POST',signal,headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
