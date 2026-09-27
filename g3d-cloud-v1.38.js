@@ -158,8 +158,8 @@ async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stre
     const res=await fetch(url,{method:'POST',signal,headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},
       body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents,generationConfig})});
     let data=null,text='';
-    if(stream && res.ok)text=await readSSE(res,onDelta,signal,d=>{const u=extractUsage(d);if(u&&onUsage)onUsage(u,d);});
-    else{try{data=await res.json();}catch(e){}text=extractGemini(data);const u=extractUsage(data);if(u&&onUsage)onUsage(u,data);}
+    if(stream && res.ok){let streamUsage=null;text=await readSSE(res,onDelta,signal,d=>{const u=extractUsage(d);if(u)streamUsage=u;});if(streamUsage&&onUsage)onUsage(streamUsage,rateLimitInfo(res));}
+    else{try{data=await res.json();}catch(e){}text=extractGemini(data);const u=extractUsage(data);if(u&&onUsage)onUsage(u,rateLimitInfo(res));}
     return {res,data,text};
   }
   async function callProvider(p,apiKey,system,history,userText,maxTokens,{signal,onDelta,onUsage}={}){
@@ -183,7 +183,7 @@ async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stre
     }else if(p.kind==='anthropic'){
       res=await fetch(p.url,{method:'POST',signal,headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({model:p.model,max_tokens:maxTokens,stream:true,system,messages:[...historyText,{role:'user',content:String(userText||'')}].map(m=>({role:m.role,content:m.content}))})});
-      if(res.ok)text=await readSSE(res,onDelta,signal,d=>{const u=extractUsage(d);if(u&&onUsage)onUsage(u,d);});else{try{data=await res.json();}catch(e){}}
+      if(res.ok){let streamUsage=null;text=await readSSE(res,onDelta,signal,d=>{const u=extractUsage(d);if(u)streamUsage=u;});if(streamUsage&&onUsage)onUsage(streamUsage,rateLimitInfo(res));}else{try{data=await res.json();}catch(e){}}
     }else{
       if(!p.url)throw new Error('Custom providers need a custom endpoint.');
       res=await fetch(p.url,{method:'POST',signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
