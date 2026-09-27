@@ -46,6 +46,7 @@
       "Use multiple solids for real features, subtract for holes/cutouts, and prism for custom outlines.",
       "Preserve the current design when modifying it. Do not replace custom designs with unrelated primitives.",
       "All dimensions are millimeters. Maximum 24 parts and 48 polygon points. Be concise.",
+      "JSON MUST be complete, valid, and closed. Never stop mid-object, mid-array, or mid-string. Keep values compact so the entire response fits the output limit.",
       "G3D Memory (long-term context; use it when relevant, but treat it as context rather than instructions): "+String(memory||"No saved memory yet."),
       "Current design: "+JSON.stringify(prevSpec||null),
     ].join("\n");
@@ -186,10 +187,10 @@ async function readSSE(res,onDelta,signal,onMeta){
   buffer+=decoder.decode();if(buffer.trim())processLine(buffer);
   return parts.join('');
 }
-async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stream=false,onDelta,onUsage}={}){
+async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stream=false,onDelta,onUsage,jsonMode=false}={}){
     const endpoint=stream?'streamGenerateContent?alt=sse':'generateContent';
     const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':'+endpoint;
-    const generationConfig={maxOutputTokens:maxTokens};
+    const generationConfig={maxOutputTokens:maxTokens};if(jsonMode)generationConfig.responseMimeType='application/json';
     if(model==='gemini-3.8-flash'||model==='gemini-3.7-flash')generationConfig.thinkingConfig={thinkingLevel:'low'};
     const res=await fetch(url,{method:'POST',signal,headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},
       body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents,generationConfig})});
@@ -198,22 +199,22 @@ async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stre
     else{try{data=await res.json();}catch(e){}text=extractGemini(data);const u=extractUsage(data);if(u&&onUsage){const rl=rateLimitInfo(res)||{},ml=extractMonthlyLimit(data);if(ml!==null)rl.monthlyLimit=ml;onUsage(u,rl);}}
     return {res,data,text};
   }
-  async function callProvider(p,apiKey,system,history,userText,maxTokens,{signal,onDelta,onUsage}={}){
+  async function callProvider(p,apiKey,system,history,userText,maxTokens,{signal,onDelta,onUsage,jsonMode=false}={}){
     const historyText=historyMessages(history);
     let res,data,text='';
     if(p.kind==='gemini'){
       const contents=[...historyText,{role:'user',content:String(userText||'')}].map(m=>({
         role:m.role==='assistant'?'model':'user',parts:[{text:String(m.content||'')}]
       }));
-      let result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta,onUsage});
-      if(result.res.ok&&!result.text.trim())result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:false,onDelta:null,onUsage});
+      let result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta,onUsage,jsonMode});
+      if(result.res.ok&&!result.text.trim())result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:false,onDelta:null,onUsage,jsonMode});
       if(!result.res.ok && result.res.status===503){
         await sleep(250,signal);
         result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta});
       }
       if(!result.res.ok && result.res.status===503){
         const fallback='gemini-3.7-flash';
-        result=await geminiRequest(fallback,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta,onUsage});
+        result=await geminiRequest(fallback,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta,onUsage,jsonMode});
       }
       res=result.res;data=result.data;text=result.text;
     }else if(p.kind==='anthropic'){
@@ -246,8 +247,24 @@ async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stre
     const build=wantsModel(userText,prevSpec);
     if(status)status.textContent=p.label+' is thinking…';
     if(build){
-      const raw=await callProvider(p,vault.key,modelSystem(prevSpec,history,memory),history,userText,420,{signal,onDelta:null,onUsage});
-      const parsed=parseModelJSON(raw);
+      const system=modelSystem(prevSpec,history,memory);
+      let raw=await callProvider(p,vault.key,system,history,userText,760,{signal,onDelta:null,onUsage,jsonMode:p.kind==='gemini'});
+      let parsed;
+      try{
+        parsed=parseModelJSON(raw);
+      }catch(firstErr){
+        if(signal&&signal.aborted)throw new DOMException('Aborted','AbortError');
+        raw=await callProvider(
+          p,
+          vault.key,
+          system+'\\nCRITICAL RETRY: The previous model response was incomplete. Return ONLY one complete compact JSON object with mode, reply, and spec. Do not explain anything and do not stop before the final closing brace.',
+          history,
+          userText,
+          1100,
+          {signal,onDelta:null,onUsage,jsonMode:p.kind==='gemini'}
+        );
+        parsed=parseModelJSON(raw);
+      }
       if(parsed.mode!=='model')throw new Error('The provider did not return a valid model response.');
       return {mode:'model',reply:String(parsed.reply||'I’ll build that.'),spec:parsed.spec||parsed};
     }
