@@ -98,7 +98,7 @@
   const u=data&&(
     data.usage||data.usageMetadata||
     (data.response&&data.response.usageMetadata)||
-    (data.candidates&&data.candidates[0]&&data.candidates[0.usageMetadata)
+    (data.candidates&&data.candidates[0]&&data.candidates[0].usageMetadata
   );
   if(!u)return null;
   const input=Number(u.promptTokenCount??u.input_tokens??u.inputTokens??u.prompt_tokens??0);
