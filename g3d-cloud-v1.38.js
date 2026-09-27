@@ -21,7 +21,7 @@
     return {id,...p};
   }
   function historyMessages(history){
-    return (Array.isArray(history)?history:[]).slice(-4).map(m=>({
+    return (Array.isArray(history)?history:[]).slice(-5).map(m=>({
       role:m.role==='assistant'?'assistant':'user',
       content:String(m.text||'').slice(0,700)
     }));
@@ -55,7 +55,7 @@
       "You are not required to make 3D models. Talk naturally unless the user explicitly asks to create or modify one.",
       "Answer directly and concisely. Use the supplied conversation for context.",
       "Do not output geometry JSON in normal chat.",
-      "Recent conversation: "+JSON.stringify(historyMessages(history)),
+      "Retrieved conversation memory: "+JSON.stringify(historyMessages(history)),
     ].join("\n");
   }
   function parseModelJSON(text){
