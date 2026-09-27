@@ -16,6 +16,7 @@
 .usageLimitBox{width:min(420px,100%);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:24px;box-shadow:0 18px 70px rgba(0,0,0,.22);text-align:center}
 .usageLimitIcon{width:42px;height:42px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;background:var(--field);border:1px solid var(--line);font-weight:800}
 .usageLimitBox h2{font-size:1.1rem;margin:0 0 8px}.usageLimitBox p{margin:0 0 18px;color:var(--sub);font-size:.84rem;line-height:1.5}
+.memorySummary{width:100%;box-sizing:border-box;resize:vertical;min-height:150px;font:inherit;line-height:1.45}
 .authModal{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:60;display:none;align-items:center;justify-content:center;padding:20px}.authModal.open{display:flex}.authBox{width:min(480px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 12px 50px rgba(0,0,0,.2)}.authTabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.authTab{padding:12px;background:var(--field);color:var(--sub);border:1px solid var(--line);border-radius:12px}.authTab.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}.authMsg{font-size:.8rem;color:var(--sub);min-height:1.2em;white-space:pre-line;margin-top:9px}.g3dAccountBadge{font-size:.68rem;color:var(--sub);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 7px;white-space:nowrap}.accountActions{display:flex;gap:8px}.accountActions button{width:auto;flex:1}.keyRow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.keyActions{display:flex;gap:8px;margin-top:9px}.keyActions button{width:auto;flex:1}
 :root{
   --bg:#f6f5f2; --panel:#ffffff; --text:#1c1b19; --sub:#6b6863; --line:#e3e0da;
@@ -220,7 +221,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.73</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.74</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -231,7 +232,7 @@ button:disabled{opacity:.5;cursor:default;}
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.73</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.74</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -240,6 +241,13 @@ button:disabled{opacity:.5;cursor:default;}
         <button id="authSignOutBtn" class="btn-secondary" type="button" style="display:none;">Sign out</button>
       </div>
       <div id="authSetupHint" class="authMsg"></div>
+    </div>
+    <div class="settingsCard">
+      <p class="sectitle">Memory</p>
+      <p class="hint" style="margin:0 0 10px;">G3D updates this compact memory after every message. The AI can read this memory for long-term context without receiving your entire conversation.</p>
+      <textarea id="memorySummary" rows="9" readonly placeholder="Memory will appear here as you chat."></textarea>
+      <div class="keyActions" style="margin-top:8px;"><button id="refreshMemoryBtn" class="btn-secondary" type="button">Refresh memory</button><button id="clearMemoryBtn" class="btn-secondary" type="button">Clear memory</button></div>
+      <div id="memoryStatus" class="authMsg"></div>
     </div>
     <div class="settingsCard">
       <p class="sectitle">AI API key</p>
@@ -370,7 +378,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.73</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.74</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -556,7 +564,7 @@ async function copyArtifact(id){
   catch(e){try{await navigator.clipboard.writeText(meta.filename);alert('This browser cannot copy binary STL data, so the filename was copied instead.');}catch(x){alert('Copy is not available in this browser.');}}
 }
 async function removeArtifact(id){artifactsMeta=artifactsMeta.filter(x=>x.id!==id);persistArtifactMeta();await deleteArtifactBlob(id);renderArtifacts();}
-function openSettings(){closeDrawer();const p=document.getElementById('settingsPanel');p.classList.add('open');p.setAttribute('aria-hidden','false');renderArtifacts();}
+function openSettings(){closeDrawer();const p=document.getElementById('settingsPanel');p.classList.add('open');p.setAttribute('aria-hidden','false');renderArtifacts();renderMemoryPanel();}
 function closeSettings(){const p=document.getElementById('settingsPanel');p.classList.remove('open');p.setAttribute('aria-hidden','true');}
 
 // ================= View 1: Pattern Generator (existing tool, unchanged behavior) =================
@@ -757,7 +765,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.73.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.74.js');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
@@ -800,7 +808,7 @@ function deleteChat(id){
 function renderChats(){
   const el=document.getElementById('chatList');
   el.innerHTML=chats.length?chats.map(x=>'<div class="chatItem '+(x.id===activeChatId?'active':'')+'"><button class="chatOpen" data-id="'+x.id+'"><span>'+esc(x.title)+'</span></button><button class="chatDelete" data-id="'+x.id+'" aria-label="Delete chat">×</button></div>').join(''):'<div class="chatEmpty">Saved chats appear here.</div>';
-  el.querySelectorAll('.chatOpen').forEach(b=>b.onclick=()=>{activeChatId=b.dataset.id;const x=getChat();aiPrevSpec=x&&x.spec||null;renderChats();renderChat();closeDrawer();document.getElementById('aiPrompt').value='';});
+  el.querySelectorAll('.chatOpen').forEach(b=>b.onclick=()=>{activeChatId=b.dataset.id;const x=getChat();aiPrevSpec=x&&x.spec||null;renderChats();renderChat();renderMemoryPanel();closeDrawer();document.getElementById('aiPrompt').value='';});
   el.querySelectorAll('.chatDelete').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();deleteChat(b.dataset.id);});
 }
 function renderChat(){
@@ -949,12 +957,14 @@ function renderLastResultCard(){
 function addMessage(role,text){
   const x=getChat()||newChat();x.messages.push({role,time:Date.now(),text:String(text).slice(0,5000)});
   if(x.messages.length===1)x.title=String(text).replace(/\s+/g,' ').trim().slice(0,42)||'New design';
-  x.updated=Date.now();chats.sort((a,b)=>b.updated-a.updated);activeChatId=x.id;saveChats();renderChats();renderChat();
+  updateChatMemory(x);x.updated=Date.now();chats.sort((a,b)=>b.updated-a.updated);activeChatId=x.id;saveChats();renderChats();renderChat();renderMemoryPanel();
 }
 function openDrawer(){document.getElementById('chatDrawer').classList.add('open');document.getElementById('drawerShade').classList.add('show');}
 function closeDrawer(){document.getElementById('chatDrawer').classList.remove('open');document.getElementById('drawerShade').classList.remove('show');}
 document.getElementById('chatMenuBtn').onclick=openDrawer;document.getElementById('chatClose').onclick=closeDrawer;document.getElementById('drawerShade').onclick=closeDrawer;document.getElementById('settingsBtn').onclick=openSettings;document.getElementById('settingsClose').onclick=closeSettings;
 document.getElementById('newChatBtn').onclick=function(){newChat();closeDrawer();};
+document.getElementById('refreshMemoryBtn').onclick=refreshMemory;
+document.getElementById('clearMemoryBtn').onclick=clearMemory;
 document.getElementById('usageLimitClose').addEventListener('click',closeUsageLimitPopup);
 document.getElementById('usageLimitModal').addEventListener('click',e=>{if(e.target===document.getElementById('usageLimitModal'))closeUsageLimitPopup();});
 document.getElementById('chatOptionsBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();toggleChatOptions();});
@@ -1113,6 +1123,56 @@ function buildAIContext(messages,currentText){
   if(contextual)recent.forEach(add);
   return picked.slice(0,5).map(m=>({role:m.role,text:String(m.text).slice(0,700)}));
 }
+function cleanMemoryLine(text){
+  return String(text||'').replace(/\s+/g,' ').trim().replace(/^[-•*]\s*/,'').slice(0,320);
+}
+function rememberWorthwhile(text){
+  const s=cleanMemoryLine(text);
+  if(s.length<4)return false;
+  if(/^(hi|hey|hello|yo|howdy|sup|ok|okay|thanks|thank you)[!.\s]*$/i.test(s))return false;
+  return /\b(i|my|me|we|our|remember|prefer|like|love|hate|don't|do not|want|need|use|using|call|named|name|project|goal|working|building|make|create|design|avoid|never|always|should|shouldn't|should not)\b/i.test(s)||s.length>55;
+}
+function updateChatMemory(chat){
+  if(!chat)return;
+  const msgs=Array.isArray(chat.messages)?chat.messages.filter(m=>m&&!m.pending&&m.role&&String(m.text||'').trim()):[];
+  const users=msgs.filter(m=>m.role==='user').map(m=>cleanMemoryLine(m.text)).filter(rememberWorthwhile);
+  const assistants=msgs.filter(m=>m.role==='assistant').map(m=>cleanMemoryLine(m.text)).filter(rememberWorthwhile);
+  const goal=users[0]||'No long-term goal captured yet.';
+  const important=[];
+  const add=(label,text)=>{const s=cleanMemoryLine(text);if(!s)return;const key=s.toLowerCase();if(!important.some(x=>x.toLowerCase().includes(key)||key.includes(x.toLowerCase())))important.push(label+s);};
+  users.slice(1).forEach(t=>add('User preference/decision: ',t));
+  assistants.slice(-3).forEach(t=>add('AI decision/context: ',t));
+  const recent=msgs.slice(-4).map(m=>(m.role==='user'?'User: ':'G3D: ')+cleanMemoryLine(m.text)).join('\n');
+  const design=chat.spec?('Current design is preserved separately as a structured G3D model with '+((chat.spec.parts&&chat.spec.parts.length)||0)+' part(s).'):'No current 3D model is attached to this chat.';
+  const parts=['Goal: '+goal,design];
+  if(important.length)parts.push('Important memory:\n'+important.slice(-8).join('\n'));
+  if(recent)parts.push('Recent context:\n'+recent);
+  chat.memory=chat.memory||{};
+  chat.memory.summary=parts.join('\n\n').slice(0,3600);
+  chat.memory.updatedAt=Date.now();
+  chat.memory.messageCount=msgs.length;
+  return chat.memory.summary;
+}
+function getChatMemory(chat){
+  if(!chat)return '';
+  if(!chat.memory||!chat.memory.summary)updateChatMemory(chat);
+  return chat.memory&&chat.memory.summary||'';
+}
+function renderMemoryPanel(){
+  const el=document.getElementById('memorySummary'),status=document.getElementById('memoryStatus'),chat=getChat();
+  if(!el)return;
+  const mem=getChatMemory(chat);
+  el.value=mem||'Memory will appear here as you chat.';
+  if(status)status.textContent=mem?(chat.memory.messageCount+' messages included · updated '+new Date(chat.memory.updatedAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})): 'No memory yet.';
+}
+function refreshMemory(){
+  const chat=getChat();if(!chat){renderMemoryPanel();return;}
+  updateChatMemory(chat);saveChats();renderMemoryPanel();
+}
+function clearMemory(){
+  const chat=getChat();if(!chat)return;
+  chat.memory={summary:'',updatedAt:Date.now(),messageCount:0};saveChats();renderMemoryPanel();
+}
 let aiAbortController=null;
 async function generateAI(){
   const btn=document.getElementById('aiSendBtn'),stopBtn=document.getElementById('aiStopBtn'),status=document.getElementById('aiStatus'),promptEl=document.getElementById('aiPrompt');
@@ -1134,6 +1194,7 @@ async function generateAI(){
       prevSpec:aiPrevSpec,
       userText:text,
       history,
+      memory:getChatMemory(active),
       status,
       signal:aiAbortController.signal,
       onUsage:recordProviderUsage,
@@ -1158,6 +1219,7 @@ async function generateAI(){
       return;
     }
     pendingMsg.text=raw.reply||'I’ll build that.';
+    updateChatMemory(active);saveChats();renderMemoryPanel();
     const spec=mergeAISpec(raw.spec||raw,aiPrevSpec);
     status.textContent='Building the model…';
     const key=JSON.stringify(spec),tris=await getMeshFromWorker(spec,spec.quality,key,'ai');
@@ -1179,9 +1241,10 @@ async function generateAI(){
       const i=active.messages.indexOf(pendingMsg);
       if(i>=0)active.messages.splice(i,1);
       active.updated=Date.now();saveChats();renderChats();renderChat();
-      status.textContent='Stopped.';
+      status.textContent='Stopped.';updateChatMemory(active);saveChats();renderMemoryPanel();
     }else{
       pendingMsg.pending=false;
+      updateChatMemory(active);saveChats();renderMemoryPanel();
       pendingMsg.text='Error: '+(err.message||err);
       status.textContent=pendingMsg.text;
       active.updated=Date.now();saveChats();renderChats();renderChat();
