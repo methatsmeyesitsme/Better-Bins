@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>G3D Design Suite</title>
 <style>
+.aiUsageBanner{margin:0 0 6px;padding:9px 12px;border:1px solid var(--line);background:var(--panel);color:var(--sub);border-radius:14px;text-align:center;font-size:.72rem;line-height:1.35}
+.aiUsageBanner[hidden]{display:none}
+.aiUsageBanner.limitReached{color:var(--text)}
+.usageLimitModal{position:fixed;inset:0;background:rgba(0,0,0,.34);z-index:80;display:none;align-items:center;justify-content:center;padding:20px}
+.usageLimitModal.open{display:flex}
+.usageLimitBox{width:min(420px,100%);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:24px;box-shadow:0 18px 70px rgba(0,0,0,.22);text-align:center}
+.usageLimitIcon{width:42px;height:42px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;background:var(--field);border:1px solid var(--line);font-weight:800}
+.usageLimitBox h2{font-size:1.1rem;margin:0 0 8px}.usageLimitBox p{margin:0 0 18px;color:var(--sub);font-size:.84rem;line-height:1.5}
 .authModal{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:60;display:none;align-items:center;justify-content:center;padding:20px}.authModal.open{display:flex}.authBox{width:min(480px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 12px 50px rgba(0,0,0,.2)}.authTabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.authTab{padding:12px;background:var(--field);color:var(--sub);border:1px solid var(--line);border-radius:12px}.authTab.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}.authMsg{font-size:.8rem;color:var(--sub);min-height:1.2em;white-space:pre-line;margin-top:9px}.g3dAccountBadge{font-size:.68rem;color:var(--sub);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 7px;white-space:nowrap}.accountActions{display:flex;gap:8px}.accountActions button{width:auto;flex:1}.keyRow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.keyActions{display:flex;gap:8px;margin-top:9px}.keyActions button{width:auto;flex:1}
 :root{
   --bg:#f6f5f2; --panel:#ffffff; --text:#1c1b19; --sub:#6b6863; --line:#e3e0da;
@@ -209,7 +217,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.57</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.58</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -220,7 +228,7 @@ button:disabled{opacity:.5;cursor:default;}
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.57</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.58</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -241,10 +249,26 @@ button:disabled{opacity:.5;cursor:default;}
       <div id="apiKeyStatus" class="authMsg"></div>
     </div>
     <div class="settingsCard">
+      <p class="sectitle">AI usage limit</p>
+      <p class="hint" style="margin:0 0 10px;">Set the monthly number of AI requests available for the selected provider. G3D divides the remaining allowance across the days left in the month.</p>
+      <div class="row single">
+        <div><label for="monthlyAiLimit">Monthly AI request limit</label><input id="monthlyAiLimit" type="number" min="0" step="1" inputmode="numeric" placeholder="Enter your monthly limit"></div>
+      </div>
+      <div id="usageLimitStatus" class="authMsg"></div>
+    </div>
+    <div class="settingsCard">
       <p class="sectitle">Artifacts</p>
       <p class="hint" style="margin:0 0 10px;">Saved STL files belong to your signed-in account. Guests do not get saved artifacts.</p>
       <div id="artifactList"></div>
     </div>
+  </div>
+</section>
+<section class="usageLimitModal" id="usageLimitModal" aria-hidden="true">
+  <div class="usageLimitBox">
+    <div class="usageLimitIcon">!</div>
+    <h2 id="usageLimitTitle">Daily AI limit reached</h2>
+    <p id="usageLimitMessage"></p>
+    <button id="usageLimitClose" type="button">Close</button>
   </div>
 </section>
 <section class="authModal" id="authModal" aria-hidden="true"><div class="authBox">
@@ -346,7 +370,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.57</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.58</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -356,6 +380,7 @@ button:disabled{opacity:.5;cursor:default;}
 
     <div class="chatMessages g3dConversation" id="chatMessages"></div>
 
+    <div class="aiUsageBanner" id="aiUsageBanner" hidden></div>
     <div class="aiComposer">
       <form id="aiComposerForm" class="aiComposerBox">
         <textarea id="aiPrompt" placeholder="Message G3D AI… describe a model, ask for a change, or continue the design." rows="1"></textarea>
@@ -732,7 +757,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.57.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.58.js');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
@@ -930,6 +955,8 @@ function openDrawer(){document.getElementById('chatDrawer').classList.add('open'
 function closeDrawer(){document.getElementById('chatDrawer').classList.remove('open');document.getElementById('drawerShade').classList.remove('show');}
 document.getElementById('chatMenuBtn').onclick=openDrawer;document.getElementById('chatClose').onclick=closeDrawer;document.getElementById('drawerShade').onclick=closeDrawer;document.getElementById('settingsBtn').onclick=openSettings;document.getElementById('settingsClose').onclick=closeSettings;
 document.getElementById('newChatBtn').onclick=function(){newChat();closeDrawer();};
+document.getElementById('usageLimitClose').addEventListener('click',closeUsageLimitPopup);
+document.getElementById('usageLimitModal').addEventListener('click',e=>{if(e.target===document.getElementById('usageLimitModal'))closeUsageLimitPopup();});
 document.getElementById('chatOptionsBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();toggleChatOptions();});
 document.getElementById('copyWholeChatBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();copyWholeChat();});
 document.getElementById('deleteChatTopBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();deleteCurrentChat();});
@@ -968,14 +995,101 @@ function downloadCurrentSTL(){
 document.getElementById('aiCopySTLBtn').addEventListener('click',copyCurrentSTL);
 document.getElementById('aiDownloadSTLBtn').addEventListener('click',downloadCurrentSTL);
 
+const USAGE_LIMIT_PREFIX='g3d_ai_usage_v2:';
+function providerUsageKey(){
+  const u=window.g3dAuth&&window.g3dAuth.getUser&&window.g3dAuth.getUser();
+  const uid=u?'user_'+u.id:'device';
+  const p=document.getElementById('apiProvider');
+  return USAGE_LIMIT_PREFIX+uid+':'+String(p&&p.value||'gemini');
+}
+function monthKey(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function dayKey(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function daysLeftInMonth(d){d=d||new Date();const next=new Date(d.getFullYear(),d.getMonth()+1,1);return Math.max(1,Math.ceil((next-d)/86400000));}
+function readUsage(){
+  const k=providerUsageKey();
+  try{
+    const raw=localStorage.getItem(k),v=raw?JSON.parse(raw):{},month=monthKey(),today=dayKey();
+    const rec=v&&v.month===month?v:{month,used:0,day:today,dayUsed:0,limit:0};
+    if(rec.day!==today){rec.day=today;rec.dayUsed=0;}
+    return rec;
+  }catch(e){return {month:monthKey(),used:0,day:dayKey(),dayUsed:0,limit:0};}
+}
+function writeUsage(rec){try{localStorage.setItem(providerUsageKey(),JSON.stringify(rec));}catch(e){}}
+function usageLimitValue(){
+  const el=document.getElementById('monthlyAiLimit'),n=Number(el&&el.value);return Number.isFinite(n)&&n>0?Math.floor(n):0;
+}
+function setUsageLimitValue(){
+  const el=document.getElementById('monthlyAiLimit');if(!el)return;
+  const rec=readUsage();el.value=rec.limit>0?String(rec.limit):'';
+  const status=document.getElementById('usageLimitStatus');
+  if(status){
+    if(rec.limit>0){
+      const remaining=Math.max(0,rec.limit-(rec.used||0));
+      status.textContent=remaining+' requests remaining this month. G3D recalculates your daily allowance each day.';
+    }else status.textContent='Enter a monthly request limit to turn on the G3D daily usage guard.';
+  }
+}
+function usageSnapshot(){
+  const rec=readUsage(),limit=rec.limit>0?rec.limit:usageLimitValue(),remaining=Math.max(0,limit-(rec.used||0));
+  if(!limit)return {enabled:false,rec,limit:0,remaining:0,days:daysLeftInMonth(),dailyLimit:0,dailyRemaining:0};
+  const dailyLimit=Math.min(remaining,Math.max(0,Math.ceil(remaining/daysLeftInMonth())));
+  return {enabled:true,rec,limit,remaining,days:daysLeftInMonth(),dailyLimit,dailyRemaining:Math.max(0,dailyLimit-(rec.dayUsed||0))};
+}
+function updateUsageUI(){
+  const snap=usageSnapshot(),banner=document.getElementById('aiUsageBanner'),send=document.getElementById('aiSendBtn'),prompt=document.getElementById('aiPrompt');
+  const busy=!!window.g3dAIRequestActive;
+  if(!banner)return;
+  if(!snap.enabled){banner.hidden=true;if(!busy){if(send)send.disabled=false;if(prompt)prompt.disabled=false;}return;}
+  banner.hidden=false;
+  if(snap.remaining<=0){
+    banner.className='aiUsageBanner limitReached';banner.textContent='Monthly AI limit reached · resets '+new Date(new Date().getFullYear(),new Date().getMonth()+1,1).toLocaleDateString(undefined,{month:'long',day:'numeric'});
+    if(!busy){if(send)send.disabled=true;if(prompt)prompt.disabled=true;}
+  }else if(snap.dailyRemaining<=0){
+    banner.className='aiUsageBanner limitReached';banner.textContent='Daily AI limit reached · resets tomorrow';
+    if(!busy){if(send)send.disabled=true;if(prompt)prompt.disabled=true;}
+  }else{
+    banner.className='aiUsageBanner';banner.textContent='Today: '+snap.dailyRemaining+'/'+snap.dailyLimit+' requests · Month: '+snap.remaining+'/'+snap.limit+' remaining';
+    if(!busy){if(send)send.disabled=false;if(prompt)prompt.disabled=false;}
+  }
+}
+function showUsageLimitPopup(){
+  const snap=usageSnapshot(),modal=document.getElementById('usageLimitModal'),title=document.getElementById('usageLimitTitle'),msg=document.getElementById('usageLimitMessage');
+  if(!modal||!snap.enabled)return;
+  if(snap.remaining<=0){
+    title.textContent='Monthly AI limit reached';
+    msg.textContent='You used all '+snap.limit+' requests in your G3D monthly allowance. AI messaging is locked until '+new Date(new Date().getFullYear(),new Date().getMonth()+1,1).toLocaleDateString(undefined,{month:'long',day:'numeric'})+'.';
+  }else{
+    const reset=new Date();reset.setHours(24,0,0,0);
+    title.textContent='Daily AI limit reached';
+    msg.textContent='G3D divided your remaining '+snap.remaining+' monthly requests across the '+snap.days+' days left in the month. Today’s allowance is used up. You can message G3D again '+reset.toLocaleString(undefined,{month:'long',day:'numeric',hour:'numeric',minute:'2-digit'})+'.';
+  }
+  modal.classList.add('open');modal.setAttribute('aria-hidden','false');
+}
+function closeUsageLimitPopup(){
+  const modal=document.getElementById('usageLimitModal');if(!modal)return;
+  modal.classList.remove('open');modal.setAttribute('aria-hidden','true');updateUsageUI();
+}
+function usageCanSend(){
+  const snap=usageSnapshot();
+  if(!snap.enabled)return true;
+  if(snap.remaining<=0||snap.dailyRemaining<=0){showUsageLimitPopup();updateUsageUI();return false;}
+  return true;
+}
+function countUsageRequest(){
+  const rec=readUsage(),limit=usageLimitValue()||rec.limit;
+  if(!limit)return;
+  rec.limit=limit;rec.used=(rec.used||0)+1;rec.dayUsed=(rec.dayUsed||0)+1;writeUsage(rec);updateUsageUI();
+}
 let aiAbortController=null;
 async function generateAI(){
   const btn=document.getElementById('aiSendBtn'),stopBtn=document.getElementById('aiStopBtn'),status=document.getElementById('aiStatus'),promptEl=document.getElementById('aiPrompt');
   const text=promptEl.value.trim();
+  if(!usageCanSend())return;
   if(!text){status.textContent='Say something first.';return;}
   const x=getChat()||newChat();
-  btn.disabled=true;stopBtn.hidden=false;document.getElementById('aiInfoCard').style.display='none';
+  btn.disabled=true;stopBtn.hidden=false;window.g3dAIRequestActive=true;document.getElementById('aiInfoCard').style.display='none';
   addMessage('user',text);
+  countUsageRequest();
   const active=getChat(),history=active&&Array.isArray(active.messages)?active.messages.slice(0,-1).slice(-6):[];
   const pendingMsg={role:'assistant',time:Date.now(),text:'',pending:true};
   active.messages.push(pendingMsg);active.updated=Date.now();saveChats();renderChats();renderChat();
@@ -1061,8 +1175,11 @@ const authModal=document.getElementById('authModal'),authOpenBtn=document.getEle
 const accountState=document.getElementById('accountState'),drawerAccountState=document.getElementById('drawerAccountState'),accountBadge=document.getElementById('g3dAccountBadge');
 const authTabLogin=document.getElementById('authTabLogin'),authTabSignup=document.getElementById('authTabSignup'),authLoginForm=document.getElementById('authLoginForm'),authSignupForm=document.getElementById('authSignupForm'),loginMsg=document.getElementById('loginMsg'),signupMsg=document.getElementById('signupMsg'),authSetupHint=document.getElementById('authSetupHint');
 const apiProvider=document.getElementById('apiProvider'),apiKeyInput=document.getElementById('apiKeyInput'),saveApiKeyBtn=document.getElementById('saveApiKeyBtn'),unlockApiKeyBtn=document.getElementById('unlockApiKeyBtn'),clearApiKeyBtn=document.getElementById('clearApiKeyBtn'),apiKeyStatus=document.getElementById('apiKeyStatus');
+function onUsageLimitInput(){const el=document.getElementById("monthlyAiLimit");if(!el)return;const rec=readUsage();rec.limit=Math.max(0,Math.floor(Number(el.value)||0));writeUsage(rec);updateUsageUI();}const monthlyAiLimit=document.getElementById('monthlyAiLimit');
+monthlyAiLimit.addEventListener('change',onUsageLimitInput);
+
 try{const savedProvider=localStorage.getItem('g3d_api_provider_v1');if(savedProvider&&apiProvider.querySelector('option[value="'+savedProvider+'"]'))apiProvider.value=savedProvider;}catch(e){}
-apiProvider.addEventListener('change',()=>{try{localStorage.setItem('g3d_api_provider_v1',apiProvider.value);}catch(e){};window.dispatchEvent(new CustomEvent('g3d-provider-change'));if(window.updateCloudLabel)window.updateCloudLabel();});
+apiProvider.addEventListener('change',()=>{try{localStorage.setItem('g3d_api_provider_v1',apiProvider.value);}catch(e){};window.dispatchEvent(new CustomEvent('g3d-provider-change'));if(window.updateCloudLabel)window.updateCloudLabel();updateUsageUI();});
 
 function authName(u){return (u&&u.user_metadata&&u.user_metadata.username)||((u&&u.email||'').split('@')[0])||'Account';}
 function setAuthMode(mode){
@@ -1224,6 +1341,7 @@ function endDrag(){
 viewport.addEventListener('pointerup', endDrag);
 viewport.addEventListener('pointercancel', endDrag);
 viewport.addEventListener('pointerleave', endDrag);
+updateUsageUI();
 </script>
 </body>
 </html>
