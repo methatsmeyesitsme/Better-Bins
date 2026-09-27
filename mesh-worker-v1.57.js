@@ -1,3 +1,4 @@
+const cancelledMeshJobs=new Set();
 function roundedBox(x,y,z,hx,hy,hz,r){
   const qx=Math.abs(x)-hx, qy=Math.abs(y)-hy, qz=Math.abs(z)-hz;
   const ax=Math.max(qx,0), ay=Math.max(qy,0), az=Math.max(qz,0);
@@ -205,7 +206,8 @@ async function generateMesh(fieldFn,res,bmin,bmax,id,patternData){
   const N=res+1,xyN=N*N;
   const dx=(bmax[0]-bmin[0])/res,dy=(bmax[1]-bmin[1])/res,dz=(bmax[2]-bmin[2])/res;
   const xs=new Float32Array(N),ys=new Float32Array(N),zs=new Float32Array(N);
-  for(let i=0;i<N;i++){xs[i]=bmin[0]+i*dx;ys[i]=bmin[1]+i*dy;zs[i]=bmin[2]+i*dz;}
+  for(let i=0;i<N;i++){
+    if(cancelledMeshJobs.has(id)){cancelledMeshJobs.delete(id);return null;}xs[i]=bmin[0]+i*dx;ys[i]=bmin[1]+i*dy;zs[i]=bmin[2]+i*dz;}
   let psx,pcx,psy,pcy,psz,pcz;
   if(patternData){
     psx=new Float32Array(N);pcx=new Float32Array(N);psy=new Float32Array(N);pcy=new Float32Array(N);psz=new Float32Array(N);pcz=new Float32Array(N);
@@ -233,6 +235,7 @@ async function generateMesh(fieldFn,res,bmin,bmax,id,patternData){
   }
   const cx=new Float32Array(8),cy=new Float32Array(8),cz=new Float32Array(8),cv=new Float32Array(8),tris=[];
   for(let i=0;i<res;i++){
+    if(cancelledMeshJobs.has(id)){cancelledMeshJobs.delete(id);return null;}
     const x0=xs[i],x1=xs[i+1],ibase=i*xyN,inext=(i+1)*xyN;
     for(let j=0;j<res;j++){
       const y0=ys[j],y1=ys[j+1],jbase=ibase+j*N,jnext=ibase+(j+1)*N,jnbase=inext+j*N,jnnext=inext+(j+1)*N;
@@ -276,12 +279,15 @@ function legacyPatternToSpec(p){
   return{parts:[part],pattern:p.pattern||"gyroid",periods:Number(p.periods)||2.5,thickness:Number(p.thickness)||1.5};
 }
 self.onmessage=async(e)=>{
-  const m=e.data||{};if(m.type!=="mesh")return;
+  const m=e.data||{};
+  if(m.type==="cancel"){cancelledMeshJobs.add(m.id);return;}
+  if(m.type!=="mesh")return;
   try{
     const spec=m.mode==="pattern"?legacyPatternToSpec(m.spec):m.spec;
     self.postMessage({type:"start",id:m.id,mode:m.mode});
     const built=buildFieldAndBounds(spec);
     const data=await generateMesh(built.field,Math.max(16,Math.min(48,Math.round(m.res||(m.mode==='pattern'?36:18)))),built.bmin,built.bmax,m.id,built.pattern);
+    if(data===null){self.postMessage({type:"cancelled",id:m.id,mode:m.mode});return;}
     self.postMessage({type:"result",id:m.id,mode:m.mode,data},[data.buffer]);
   }catch(err){self.postMessage({type:"error",id:m.id,mode:m.mode,message:err?.message||String(err)});}
 };
