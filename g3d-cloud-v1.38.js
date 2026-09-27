@@ -4,7 +4,7 @@
 (function(){
   'use strict';
   const PROVIDERS={
-    gemini:{label:'Google Gemini',model:'gemini-3.8-flash',kind:'gemini',url:'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent'},
+    gemini:{label:'Google Gemini',model:'gemini-3.5-flash-lite',modelBuild:'gemini-3.8-flash',kind:'gemini',url:'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent'},
     openai:{label:'OpenAI',model:'gpt-5',kind:'openai',url:'https://api.openai.com/v1/chat/completions'},
     anthropic:{label:'Anthropic',model:'claude-sonnet-5',kind:'anthropic',url:'https://api.anthropic.com/v1/messages'},
     groq:{label:'Groq',model:'openai/gpt-oss-120b',kind:'openai',url:'https://api.groq.com/openai/v1/chat/completions'},
@@ -187,11 +187,47 @@ async function readSSE(res,onDelta,signal,onMeta){
   buffer+=decoder.decode();if(buffer.trim())processLine(buffer);
   return parts.join('');
 }
+const G3D_MODEL_RESPONSE_SCHEMA={
+  type:"object",
+  properties:{
+    mode:{type:"string",enum:["model"]},
+    reply:{type:"string"},
+    spec:{
+      type:"object",
+      properties:{
+        parts:{
+          type:"array",maxItems:24,
+          items:{
+            type:"object",
+            properties:{
+              type:{type:"string",enum:["box","roundedBox","sphere","cylinder","tube","cone","torus","capsule","prism"]},
+              op:{type:"string",enum:["union","subtract","intersect"]},
+              position:{type:"array",items:{type:"number"},minItems:3,maxItems:3},
+              rotation:{type:"array",items:{type:"number"},minItems:3,maxItems:3},
+              scale:{type:"array",items:{type:"number"},minItems:3,maxItems:3},
+              size:{type:"array",items:{type:"number"},minItems:3,maxItems:3},
+              radius:{type:"number"},radius2:{type:"number"},height:{type:"number"},
+              outerRadius:{type:"number"},innerRadius:{type:"number"},
+              majorRadius:{type:"number"},minorRadius:{type:"number"},
+              length:{type:"number"},depth:{type:"number"},
+              points:{type:"array",maxItems:48,items:{type:"array",items:{type:"number"},minItems:2,maxItems:2}}
+            },
+            required:["type","op"]
+          }
+        },
+        pattern:{type:"string",enum:["none","gyroid","schwarzp","diamond"]},
+        periods:{type:"number"},thickness:{type:"number"},quality:{type:"number"}
+      },
+      required:["parts"]
+    }
+  },
+  required:["mode","reply","spec"]
+};
 async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stream=false,onDelta,onUsage,jsonMode=false}={}){
     const endpoint=stream?'streamGenerateContent?alt=sse':'generateContent';
     const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':'+endpoint;
-    const generationConfig={maxOutputTokens:maxTokens};if(jsonMode)generationConfig.responseMimeType='application/json';
-    if(model==='gemini-3.8-flash'||model==='gemini-3.7-flash')generationConfig.thinkingConfig={thinkingLevel:'low'};
+    const generationConfig={maxOutputTokens:maxTokens};if(jsonMode){generationConfig.responseMimeType='application/json';generationConfig.responseSchema=G3D_MODEL_RESPONSE_SCHEMA;}
+    if(model==='gemini-3.8-flash')generationConfig.thinkingConfig={thinkingLevel:'medium'};else if(model==='gemini-3.5-flash-lite')generationConfig.thinkingConfig={thinkingLevel:'low'};
     const res=await fetch(url,{method:'POST',signal,headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},
       body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents,generationConfig})});
     let data=null,text='';
@@ -248,23 +284,10 @@ async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stre
     if(status)status.textContent=p.label+' is thinking…';
     if(build){
       const system=modelSystem(prevSpec,history,memory);
-      let raw=await callProvider(p,vault.key,system,history,userText,760,{signal,onDelta:null,onUsage,jsonMode:p.kind==='gemini'});
-      let parsed;
-      try{
-        parsed=parseModelJSON(raw);
-      }catch(firstErr){
-        if(signal&&signal.aborted)throw new DOMException('Aborted','AbortError');
-        raw=await callProvider(
-          p,
-          vault.key,
-          system+'\\nCRITICAL RETRY: The previous model response was incomplete. Return ONLY one complete compact JSON object with mode, reply, and spec. Do not explain anything and do not stop before the final closing brace.',
-          history,
-          userText,
-          1100,
-          {signal,onDelta:null,onUsage,jsonMode:p.kind==='gemini'}
-        );
-        parsed=parseModelJSON(raw);
-      }
+      const modelForBuild=p.kind==='gemini'?(p.modelBuild||p.model):p.model;
+      const buildProvider={...p,model:modelForBuild};
+      const raw=await callProvider(buildProvider,vault.key,system,history,userText,900,{signal,onDelta:null,onUsage,jsonMode:p.kind==='gemini'});
+      const parsed=parseModelJSON(raw);
       if(parsed.mode!=='model')throw new Error('The provider did not return a valid model response.');
       return {mode:'model',reply:String(parsed.reply||'I’ll build that.'),spec:parsed.spec||parsed};
     }
