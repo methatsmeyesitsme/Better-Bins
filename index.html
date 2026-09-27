@@ -229,7 +229,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.83</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.84</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -240,7 +240,7 @@ button:disabled{opacity:.5;cursor:default;}
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.83</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.84</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -388,7 +388,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.83</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.84</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -806,19 +806,19 @@ async function getMeshFromWorker(spec,res,key,mode){
 
 const CHAT_KEY='g3d_ai_chats_v1';
 let chats=[],activeChatId=null;
-function chatStorageKey(){const k=userKey(CHAT_KEY);return k;}
+function chatStorageKey(){return userKey(CHAT_KEY)||CHAT_KEY+':device';}
 function loadUserChats(){
   chats=[];activeChatId=null;
-  const k=chatStorageKey();if(!k){renderChats();renderChat();return;}
+  const k=chatStorageKey();
   try{const v=JSON.parse(localStorage.getItem(k)||'[]');chats=Array.isArray(v)?v:[];}catch(e){chats=[];}
   if(chats.length)activeChatId=chats[0].id;
   const x=getChat();aiPrevSpec=x&&x.spec||null;renderChats();renderChat();
 }
 function esc(s){return String(s).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
-function saveChats(){const k=chatStorageKey();if(!k)return;try{localStorage.setItem(k,JSON.stringify(chats.filter(x=>!x.ephemeral)));}catch(e){}}
+function saveChats(){const k=chatStorageKey();if(!k)return;try{localStorage.setItem(k,JSON.stringify(chats));}catch(e){}}
 function getChat(){return chats.find(function(x){return x.id===activeChatId;})||null;}
 function newChat(){
-  const x={id:'c_'+Date.now(),title:'New design',messages:[],spec:null,updated:Date.now(),ephemeral:!isLoggedIn()};
+  const x={id:'c_'+Date.now(),title:'New design',messages:[],spec:null,updated:Date.now(),ephemeral:false};
   chats.unshift(x);activeChatId=x.id;if(!x.ephemeral)saveChats();renderChats();renderChat();const p=document.getElementById('aiPrompt');if(p)p.value='';return x;
 }
 function deleteChat(id){
@@ -1390,7 +1390,7 @@ function refreshAccountUi(){
   const vault=window.g3dAuth&&window.g3dAuth.apiVaultStatus?window.g3dAuth.apiVaultStatus():{saved:false,unlocked:false};
   apiKeyStatus.textContent=!u?'Sign in to store an API key.':(vault.saved?(vault.unlocked?'API key is saved on this device and ready to use.':'API key is saved on this device.'):'No API key saved for this account on this device.');
   if(u && typeof showSavedApiKeyState==='function')showSavedApiKeyState();
-  renderChats();renderChat();loadUserArtifacts();
+  loadUserChats();loadUserArtifacts();
 }
 window.addEventListener('g3d-auth-state',refreshAccountUi);
 refreshAccountUi();
