@@ -229,7 +229,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.78</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.79</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -240,7 +240,7 @@ button:disabled{opacity:.5;cursor:default;}
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.78</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.79</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -388,7 +388,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.78</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.79</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -775,7 +775,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.78.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.79.js');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
@@ -1088,28 +1088,34 @@ function updateUsageUI(){
     if(!window.g3dAIRequestActive){if(send)send.disabled=false;if(prompt)prompt.disabled=false;}
   }
 }
-function recordProviderUsage(usage,data,rateLimit,chatId,message){
+function recordProviderUsage(usage,data,rateLimit,chatId,message,entryRef){
   if(!usage)return;
   const rec=readUsage();
-  rec.requests=(rec.requests||0)+1;
-  rec.inputTokens=(rec.inputTokens||0)+(Number(usage.inputTokens)||0);
-  rec.outputTokens=(rec.outputTokens||0)+(Number(usage.outputTokens)||0);
-  rec.totalTokens=(rec.totalTokens||0)+(Number(usage.totalTokens)||0);
+  const inputTokens=Number(usage.inputTokens)||0,outputTokens=Number(usage.outputTokens)||0,totalTokens=Number(usage.totalTokens)||0;
+  const already=entryRef&&Array.isArray(rec.entries)&&rec.entries.find(e=>e.id===entryRef.id);
+  if(!already)rec.requests=(rec.requests||0)+1;
+  rec.inputTokens=(rec.inputTokens||0)+inputTokens;
+  rec.outputTokens=(rec.outputTokens||0)+outputTokens;
+  rec.totalTokens=(rec.totalTokens||0)+totalTokens;
   rec.lastUsageAt=Date.now();
   if(rateLimit){
     rec.lastProviderLimit=rateLimit;
     if(rateLimit.monthlyLimit!==null&&rateLimit.monthlyLimit!==undefined)rec.detectedMonthlyLimit=rateLimit.monthlyLimit;
   }
   if(!Array.isArray(rec.entries))rec.entries=[];
-  rec.entries.push({
-    id:'u_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-    at:Date.now(),
-    chatId:chatId||activeChatId||'unknown',
-    message:String(message||'').slice(0,500),
-    inputTokens:Number(usage.inputTokens)||0,
-    outputTokens:Number(usage.outputTokens)||0,
-    totalTokens:Number(usage.totalTokens)||0
-  });
+  let entry=already;
+  if(!entry){
+    entry=entryRef||{
+      id:'u_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+      at:Date.now(),chatId:chatId||activeChatId||'unknown',
+      message:String(message||'').slice(0,500),inputTokens:0,outputTokens:0,totalTokens:0
+    };
+    rec.entries.push(entry);
+  }
+  entry.inputTokens=(entry.inputTokens||0)+inputTokens;
+  entry.outputTokens=(entry.outputTokens||0)+outputTokens;
+  entry.totalTokens=(entry.totalTokens||0)+totalTokens;
+  entry.at=entry.at||Date.now();
   if(rec.entries.length>500)rec.entries=rec.entries.slice(-500);
   writeUsage(rec);updateUsageUI();
 }
@@ -1222,6 +1228,7 @@ async function generateAI(){
   const x=getChat()||newChat();
   btn.disabled=true;stopBtn.hidden=false;window.g3dAIRequestActive=true;document.getElementById('aiInfoCard').style.display='none';
   addMessage('user',text);
+  const usageEntryRef={id:'u_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),at:Date.now(),chatId:activeChatId||'unknown',message:text,inputTokens:0,outputTokens:0,totalTokens:0};
   const active=getChat(),history=buildAIContext(active&&Array.isArray(active.messages)?active.messages:[],text);
   const pendingMsg={role:'assistant',time:Date.now(),text:'',pending:true};
   active.messages.push(pendingMsg);active.updated=Date.now();saveChats();renderChats();renderChat();
@@ -1237,7 +1244,9 @@ async function generateAI(){
       memory:getChatMemory(active),
       status,
       signal:aiAbortController.signal,
-      onUsage:(usage,rateLimit)=>recordProviderUsage(usage,null,rateLimit,active.id,text),
+      onUsage:(usage,rateLimit)=>{
+        recordProviderUsage(usage,null,rateLimit,active.id,text,usageEntryRef);
+      },
       onDelta:chunk=>{
         if(!pendingMsg.pending)return;
         if(chunk){
