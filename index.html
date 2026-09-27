@@ -17,6 +17,14 @@
 .usageLimitIcon{width:42px;height:42px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;background:var(--field);border:1px solid var(--line);font-weight:800}
 .usageLimitBox h2{font-size:1.1rem;margin:0 0 8px}.usageLimitBox p{margin:0 0 18px;color:var(--sub);font-size:.84rem;line-height:1.5}
 .memorySummary{width:100%;box-sizing:border-box;resize:vertical;min-height:150px;font:inherit;line-height:1.45}
+.usageListTitle{margin-top:14px;font-size:.78rem;font-weight:700;color:var(--text)}
+.usageEntryList{margin-top:7px;border-top:1px solid var(--line)}
+.usageEntry{padding:10px 0;border-bottom:1px solid var(--line)}
+.usageEntry:last-child{border-bottom:0}
+.usageEntryMain{min-width:0}
+.usageEntryMain strong{font-size:.82rem}
+.usageEntryMeta{margin-top:2px;font-size:.68rem;color:var(--sub)}
+.usageEntryPrompt{margin-top:4px;font-size:.72rem;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .authModal{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:60;display:none;align-items:center;justify-content:center;padding:20px}.authModal.open{display:flex}.authBox{width:min(480px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 12px 50px rgba(0,0,0,.2)}.authTabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}.authTab{padding:12px;background:var(--field);color:var(--sub);border:1px solid var(--line);border-radius:12px}.authTab.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}.authMsg{font-size:.8rem;color:var(--sub);min-height:1.2em;white-space:pre-line;margin-top:9px}.g3dAccountBadge{font-size:.68rem;color:var(--sub);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 7px;white-space:nowrap}.accountActions{display:flex;gap:8px}.accountActions button{width:auto;flex:1}.keyRow{display:grid;grid-template-columns:1fr 1fr;gap:8px}.keyActions{display:flex;gap:8px;margin-top:9px}.keyActions button{width:auto;flex:1}
 :root{
   --bg:#f6f5f2; --panel:#ffffff; --text:#1c1b19; --sub:#6b6863; --line:#e3e0da;
@@ -221,7 +229,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.75</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.76</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -232,7 +240,7 @@ button:disabled{opacity:.5;cursor:default;}
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.75</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.76</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -263,6 +271,8 @@ button:disabled{opacity:.5;cursor:default;}
       <p class="sectitle">AI usage</p>
       <p class="hint" style="margin:0 0 10px;">G3D automatically records the usage the provider reports. A new month starts a fresh usage record. Provider account limits are shown when the API exposes them; otherwise G3D will tell you when the provider itself blocks further usage.</p>
       <div id="usageLimitStatus" class="authMsg"></div>
+      <div class="usageListTitle">Every AI message this month</div>
+      <div id="usageEntryList" class="usageEntryList"></div>
     </div>
     <div class="settingsCard">
       <p class="sectitle">Artifacts</p>
@@ -378,7 +388,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.75</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.76</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -765,7 +775,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.75.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.76.js');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
@@ -1020,13 +1030,14 @@ function readUsage(){
   try{
     const raw=localStorage.getItem(k),v=raw?JSON.parse(raw):null;
     if(!v||v.month!==month){
-      const rec={month,day:today,requests:0,inputTokens:0,outputTokens:0,totalTokens:0,quotaExhausted:false,quotaMessage:'',lastUsageAt:0,lastProviderLimit:null,detectedMonthlyLimit:null};
+      const rec={month,day:today,requests:0,inputTokens:0,outputTokens:0,totalTokens:0,quotaExhausted:false,quotaMessage:'',lastUsageAt:0,lastProviderLimit:null,detectedMonthlyLimit:null,entries:[]};
       localStorage.setItem(k,JSON.stringify(rec));return rec;
     }
     if(v.day!==today)v.day=today;
+    if(!Array.isArray(v.entries))v.entries=[];
     return v;
   }catch(e){
-    return {month,day:today,requests:0,inputTokens:0,outputTokens:0,totalTokens:0,quotaExhausted:false,quotaMessage:'',lastUsageAt:0,lastProviderLimit:null,detectedMonthlyLimit:null};
+    return {month,day:today,requests:0,inputTokens:0,outputTokens:0,totalTokens:0,quotaExhausted:false,quotaMessage:'',lastUsageAt:0,lastProviderLimit:null,detectedMonthlyLimit:null,entries:[]};
   }
 }
 function writeUsage(rec){try{localStorage.setItem(providerUsageKey(),JSON.stringify(rec));}catch(e){}}
@@ -1036,17 +1047,32 @@ function formatTokens(n){
   if(n>=1000)return (n/1000).toFixed(1).replace(/\.0$/,'')+'K';
   return String(Math.round(n));
 }
+function usageChatLabel(chatId){
+  const x=chats.find(c=>c.id===chatId);
+  return x&&x.title?x.title:'Chat';
+}
+function renderUsageEntries(){
+  const el=document.getElementById('usageEntryList');if(!el)return;
+  const rec=readUsage(),entries=Array.isArray(rec.entries)?rec.entries.slice().reverse():[];
+  if(!entries.length){el.innerHTML='<div class="artifactEmpty">No AI messages recorded yet this month.</div>';return;}
+  el.innerHTML=entries.slice(0,100).map(en=>{
+    const title=esc(usageChatLabel(en.chatId));
+    const when=new Date(en.at).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    const prompt=esc(String(en.message||'').replace(/\s+/g,' ').slice(0,110));
+    return '<div class="usageEntry"><div class="usageEntryMain"><strong>'+title+'</strong><div class="usageEntryMeta">'+when+' · '+formatTokens(en.totalTokens)+' tokens · 1 AI request</div><div class="usageEntryPrompt">'+prompt+'</div></div></div>';
+  }).join('');
+}
 function updateUsageStatusText(){
   const status=document.getElementById('usageLimitStatus');if(!status)return;
-  const rec=readUsage();
-  const monthly=rec.detectedMonthlyLimit;
+  const rec=readUsage(),monthly=rec.detectedMonthlyLimit;
   if(rec.quotaExhausted){
-    status.innerHTML='<strong>Monthly limit:</strong> '+(monthly!==null?esc(String(monthly)):'Not exposed by provider API')+'<br>Detected usage: '+rec.requests+' requests · '+formatTokens(rec.totalTokens)+' tokens.<br>Provider limit reached: '+esc(rec.quotaMessage||'the provider rejected further usage')+'. Resets '+monthResetDate().toLocaleDateString(undefined,{month:'long',day:'numeric'})+'.';
-    return;
+    status.innerHTML='<strong>Monthly limit:</strong> '+(monthly!==null?esc(String(monthly)):'Not exposed by provider API')+'<br>Detected usage this month: '+rec.requests+' AI messages across '+new Set((rec.entries||[]).map(e=>e.chatId)).size+' chat(s) · '+formatTokens(rec.totalTokens)+' tokens.<br>Provider limit reached: '+esc(rec.quotaMessage||'the provider rejected further usage')+'. Resets '+monthResetDate().toLocaleDateString(undefined,{month:'long',day:'numeric'})+'.';
+    renderUsageEntries();return;
   }
   const monthlyText=monthly!==null?String(monthly):(rec.lastUsageAt?'Not exposed by provider API':'Detecting on the first AI request…');
   const rl=rec.lastProviderLimit;
-  status.innerHTML='<strong>Monthly limit:</strong> '+esc(monthlyText)+'<br>Detected usage: '+rec.requests+' requests · '+formatTokens(rec.totalTokens)+' tokens.'+(rl&&Number.isFinite(rl.limit)?'<br>Provider request limit: '+rl.limit+' · '+rl.remaining+' remaining.':'');
+  status.innerHTML='<strong>Monthly limit:</strong> '+esc(monthlyText)+'<br><strong>Usage this month:</strong> '+rec.requests+' AI messages across '+new Set((rec.entries||[]).map(e=>e.chatId)).size+' chat(s) · '+formatTokens(rec.totalTokens)+' tokens.'+(rl&&Number.isFinite(rl.limit)?'<br>Provider request limit: '+rl.limit+' · '+rl.remaining+' remaining.':'');
+  renderUsageEntries();
 }
 function updateUsageUI(){
   const banner=document.getElementById('aiUsageBanner'),send=document.getElementById('aiSendBtn'),prompt=document.getElementById('aiPrompt');
@@ -1058,14 +1084,11 @@ function updateUsageUI(){
     banner.textContent='Provider limit reached · resets '+monthResetDate().toLocaleDateString(undefined,{month:'long',day:'numeric'});
     if(!window.g3dAIRequestActive){if(send)send.disabled=true;if(prompt)prompt.disabled=true;}
   }else{
-    const rl=rec.lastProviderLimit;
-    banner.textContent=rl&&Number.isFinite(rl.limit)
-      ? 'This month: '+rec.requests+' requests · '+formatTokens(rec.totalTokens)+' tokens · Today: '+rl.remaining+'/'+rl.limit+' requests'
-      : 'This month: '+rec.requests+' requests · '+formatTokens(rec.totalTokens)+' tokens';
+    banner.textContent='This month: '+rec.requests+' AI messages · '+formatTokens(rec.totalTokens)+' tokens';
     if(!window.g3dAIRequestActive){if(send)send.disabled=false;if(prompt)prompt.disabled=false;}
   }
 }
-function recordProviderUsage(usage,data,rateLimit){
+function recordProviderUsage(usage,data,rateLimit,chatId,message){
   if(!usage)return;
   const rec=readUsage();
   rec.requests=(rec.requests||0)+1;
@@ -1073,7 +1096,21 @@ function recordProviderUsage(usage,data,rateLimit){
   rec.outputTokens=(rec.outputTokens||0)+(Number(usage.outputTokens)||0);
   rec.totalTokens=(rec.totalTokens||0)+(Number(usage.totalTokens)||0);
   rec.lastUsageAt=Date.now();
-  if(rateLimit){rec.lastProviderLimit=rateLimit;if(rateLimit.monthlyLimit!==null&&rateLimit.monthlyLimit!==undefined)rec.detectedMonthlyLimit=rateLimit.monthlyLimit;}
+  if(rateLimit){
+    rec.lastProviderLimit=rateLimit;
+    if(rateLimit.monthlyLimit!==null&&rateLimit.monthlyLimit!==undefined)rec.detectedMonthlyLimit=rateLimit.monthlyLimit;
+  }
+  if(!Array.isArray(rec.entries))rec.entries=[];
+  rec.entries.push({
+    id:'u_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    at:Date.now(),
+    chatId:chatId||activeChatId||'unknown',
+    message:String(message||'').slice(0,500),
+    inputTokens:Number(usage.inputTokens)||0,
+    outputTokens:Number(usage.outputTokens)||0,
+    totalTokens:Number(usage.totalTokens)||0
+  });
+  if(rec.entries.length>500)rec.entries=rec.entries.slice(-500);
   writeUsage(rec);updateUsageUI();
 }
 function recordProviderQuota(err){
@@ -1081,7 +1118,10 @@ function recordProviderQuota(err){
   const rec=readUsage();
   rec.quotaExhausted=true;
   rec.quotaMessage=(err.message||'Provider usage limit reached').replace(/^.*error \(\d+\):\s*/,'');
-  if(err.providerRateLimit){rec.lastProviderLimit=err.providerRateLimit;if(err.providerRateLimit.monthlyLimit!==null&&err.providerRateLimit.monthlyLimit!==undefined)rec.detectedMonthlyLimit=err.providerRateLimit.monthlyLimit;}
+  if(err.providerRateLimit){
+    rec.lastProviderLimit=err.providerRateLimit;
+    if(err.providerRateLimit.monthlyLimit!==null&&err.providerRateLimit.monthlyLimit!==undefined)rec.detectedMonthlyLimit=err.providerRateLimit.monthlyLimit;
+  }
   writeUsage(rec);updateUsageUI();
 }
 function usageCanSend(){
@@ -1197,7 +1237,7 @@ async function generateAI(){
       memory:getChatMemory(active),
       status,
       signal:aiAbortController.signal,
-      onUsage:recordProviderUsage,
+      onUsage:(usage,rateLimit)=>recordProviderUsage(usage,null,rateLimit,active.id,text),
       onDelta:chunk=>{
         if(!pendingMsg.pending)return;
         if(chunk){
