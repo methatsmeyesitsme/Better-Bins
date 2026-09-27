@@ -98,7 +98,7 @@
   const u=data&&(
     data.usage||data.usageMetadata||
     (data.response&&data.response.usageMetadata)||
-    (data.candidates&&data.candidates[0]&&data.candidates[0].usageMetadata
+    (data.candidates&&data.candidates[0]&&data.candidates[0].usageMetadata)
   );
   if(!u)return null;
   const input=Number(u.promptTokenCount??u.input_tokens??u.inputTokens??u.prompt_tokens??0);
@@ -106,13 +106,46 @@
   const total=Number(u.totalTokenCount??u.total_tokens??u.totalTokens??(input+output));
   return {inputTokens:Number.isFinite(input)?input:0,outputTokens:Number.isFinite(output)?output:0,totalTokens:Number.isFinite(total)?total:(input+output),requests:1};
 }
+function extractMonthlyLimit(data){
+  const sources=[
+    data,
+    data&&data.error,
+    data&&data.usage,
+    data&&data.usageMetadata,
+    data&&data.metadata,
+    data&&data.limits,
+    data&&data.quota,
+    data&&data.response&&data.response.usageMetadata
+  ].filter(Boolean);
+  const names=['monthlyLimit','monthly_limit','monthlyQuota','monthly_quota','monthLimit','month_limit','monthlyCap','monthly_cap'];
+  for(const src of sources){
+    for(const name of names){
+      const n=Number(src[name]);
+      if(Number.isFinite(n)&&n>=0)return n;
+    }
+    const nested=src.limits||src.quota||src.billing;
+    if(nested){
+      for(const name of names){
+        const n=Number(nested[name]);
+        if(Number.isFinite(n)&&n>=0)return n;
+      }
+    }
+  }
+  return null;
+}
 function rateLimitInfo(res){
   if(!res||!res.headers)return null;
   const get=n=>res.headers.get(n);
   const limit=Number(get('x-ratelimit-limit-requests'));
   const remaining=Number(get('x-ratelimit-remaining-requests'));
   const reset=get('x-ratelimit-reset-requests');
-  return Number.isFinite(limit)&&Number.isFinite(remaining)?{window:'request',limit,remaining,reset}:null;
+  const monthlyHeaders=['x-monthly-limit','x-ratelimit-limit-month','x-quota-limit-month','x-billing-limit-month'];
+  let monthlyLimit=null;
+  for(const name of monthlyHeaders){
+    const n=Number(get(name));if(Number.isFinite(n)&&n>=0){monthlyLimit=n;break;}
+  }
+  return (Number.isFinite(limit)&&Number.isFinite(remaining))||monthlyLimit!==null
+    ?{window:'request',limit,remaining,reset,monthlyLimit}:null;
 }
 function quotaExhausted(res,data){
   const msg=String(data&&data.error&&(data.error.message||data.error.type||data.error.code)||'').toLowerCase();
