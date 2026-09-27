@@ -191,8 +191,8 @@ async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stre
     const res=await fetch(url,{method:'POST',signal,headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},
       body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents,generationConfig})});
     let data=null,text='';
-    if(stream && res.ok){let streamUsage=null;text=await readSSE(res,onDelta,signal,d=>{const u=extractUsage(d);if(u)streamUsage=u;});if(streamUsage&&onUsage)onUsage(streamUsage,rateLimitInfo(res));}
-    else{try{data=await res.json();}catch(e){}text=extractGemini(data);const u=extractUsage(data);if(u&&onUsage)onUsage(u,rateLimitInfo(res));}
+    if(stream && res.ok){let streamUsage=null,streamMonthlyLimit=null;text=await readSSE(res,onDelta,signal,d=>{const u=extractUsage(d);if(u)streamUsage=u;const ml=extractMonthlyLimit(d);if(ml!==null)streamMonthlyLimit=ml;});if(streamUsage&&onUsage){const rl=rateLimitInfo(res)||{};if(streamMonthlyLimit!==null)rl.monthlyLimit=streamMonthlyLimit;onUsage(streamUsage,rl);}}
+    else{try{data=await res.json();}catch(e){}text=extractGemini(data);const u=extractUsage(data);if(u&&onUsage){const rl=rateLimitInfo(res)||{},ml=extractMonthlyLimit(data);if(ml!==null)rl.monthlyLimit=ml;onUsage(u,rl);}}
     return {res,data,text};
   }
   async function callProvider(p,apiKey,system,history,userText,maxTokens,{signal,onDelta,onUsage}={}){
