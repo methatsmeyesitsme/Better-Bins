@@ -220,7 +220,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.70</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.71</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -231,7 +231,7 @@ button:disabled{opacity:.5;cursor:default;}
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.70</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.71</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -370,7 +370,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.70</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.71</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -757,7 +757,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.70.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.71.js');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
@@ -1090,6 +1090,29 @@ function closeUsageLimitPopup(){
   const modal=document.getElementById('usageLimitModal');if(!modal)return;
   modal.classList.remove('open');modal.setAttribute('aria-hidden','true');updateUsageUI();
 }
+function aiWords(text){
+  return new Set(String(text||'').toLowerCase().replace(/[^a-z0-9\s']/g,' ').split(/\s+/).filter(w=>w.length>2&&!/^(the|and|for|that|this|with|from|have|has|was|were|you|your|are|can|just|what|when|where|how|why|who|into|about|then|than|they|them|our|out|not|but|all|hey|hi|hello)$/i.test(w)));
+}
+function buildAIContext(messages,currentText){
+  const usable=messages.filter(m=>m&&m.role&&m.role!=='system'&&!m.pending&&String(m.text||'').trim());
+  if(!usable.length)return [];
+  const raw=String(currentText||'').trim();
+  const simpleGreeting=/^(hi|hey|hello|yo|howdy|sup|good morning|good afternoon|good evening|thanks|thank you|ok|okay)[.!\s]*$/i.test(raw);
+  if(simpleGreeting)return [];
+  const q=aiWords(raw),recent=usable.slice(-2);
+  const contextual=/\b(this|that|it|them|they|he|she|previous|earlier|before|again|continue|same|change|modify|make it|what about)\b/i.test(raw);
+  const scored=usable.slice(0,-2).map((m,i)=>{
+    const words=aiWords(m.text);let overlap=0;
+    q.forEach(w=>{if(words.has(w))overlap++;});
+    const exact=raw.length>5&&String(m.text).toLowerCase().includes(raw)?8:0;
+    const recency=(i/Math.max(1,usable.length))*1.5;
+    return {m,score:overlap*3+exact+recency};
+  }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,3).map(x=>x.m);
+  const picked=[];const add=m=>{if(m&&!picked.includes(m))picked.push(m);};
+  recent.forEach(add);scored.forEach(add);
+  if(contextual)recent.forEach(add);
+  return picked.slice(0,5).map(m=>({role:m.role,text:String(m.text).slice(0,700)}));
+}
 let aiAbortController=null;
 async function generateAI(){
   const btn=document.getElementById('aiSendBtn'),stopBtn=document.getElementById('aiStopBtn'),status=document.getElementById('aiStatus'),promptEl=document.getElementById('aiPrompt');
@@ -1099,7 +1122,7 @@ async function generateAI(){
   const x=getChat()||newChat();
   btn.disabled=true;stopBtn.hidden=false;window.g3dAIRequestActive=true;document.getElementById('aiInfoCard').style.display='none';
   addMessage('user',text);
-  const active=getChat(),history=active&&Array.isArray(active.messages)?active.messages.slice(0,-1).slice(-6):[];
+  const active=getChat(),history=buildAIContext(active&&Array.isArray(active.messages)?active.messages:[],text);
   const pendingMsg={role:'assistant',time:Date.now(),text:'',pending:true};
   active.messages.push(pendingMsg);active.updated=Date.now();saveChats();renderChats();renderChat();
   const pendingIndex=active.messages.length-1;
