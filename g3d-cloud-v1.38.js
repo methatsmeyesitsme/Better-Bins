@@ -94,7 +94,34 @@
       if(signal)signal.addEventListener('abort',()=>{clearTimeout(t);reject(new DOMException('Aborted','AbortError'));},{once:true});
     });
   }
-  async function readSSE(res,onDelta,signal){
+  function extractUsage(data){
+  const u=data&&(
+    data.usage||data.usageMetadata||
+    (data.response&&data.response.usageMetadata)||
+    (data.candidates&&data.candidates[0]&&data.candidates[0.usageMetadata)
+  );
+  if(!u)return null;
+  const input=Number(u.promptTokenCount??u.input_tokens??u.inputTokens??u.prompt_tokens??0);
+  const output=Number(u.candidatesTokenCount??u.output_tokens??u.outputTokens??u.completion_tokens??0);
+  const total=Number(u.totalTokenCount??u.total_tokens??u.totalTokens??(input+output));
+  return {inputTokens:Number.isFinite(input)?input:0,outputTokens:Number.isFinite(output)?output:0,totalTokens:Number.isFinite(total)?total:(input+output),requests:1};
+}
+function rateLimitInfo(res){
+  if(!res||!res.headers)return null;
+  const get=n=>res.headers.get(n);
+  const limit=Number(get('x-ratelimit-limit-requests'));
+  const remaining=Number(get('x-ratelimit-remaining-requests'));
+  const reset=get('x-ratelimit-reset-requests');
+  return Number.isFinite(limit)&&Number.isFinite(remaining)?{window:'request',limit,remaining,reset}:null;
+}
+function quotaExhausted(res,data){
+  const msg=String(data&&data.error&&(data.error.message||data.error.type||data.error.code)||'').toLowerCase();
+  const code=String(data&&data.error&&data.error.code||'').toLowerCase();
+  if(code==='insufficient_quota'||code==='blocked_api_access')return true;
+  if(/monthly (limit|cap|spend)|spend (limit|cap)|billing (limit|cap)|credits? remaining|no credits|quota.*exceeded|exceeded.*quota/.test(msg))return true;
+  return false;
+}
+async function readSSE(res,onDelta,signal,onMeta){
   if(!res.body)return '';
   const reader=res.body.getReader(),decoder=new TextDecoder(),parts=[];let buffer='';
   const processLine=(line)=>{
@@ -103,7 +130,8 @@
     const dataLine=raw.startsWith('data:')?raw.slice(5).trim():raw;
     if(!dataLine||dataLine==='[DONE]')return;
     try{
-      const data=JSON.parse(dataLine);let delta='';
+      const data=JSON.parse(dataLine);if(onMeta)onMeta(data);
+      let delta='';
       if(data.candidates&&data.candidates[0]&&data.candidates[0].content&&Array.isArray(data.candidates[0].content.parts)){
         delta=data.candidates[0].content.parts.filter(function(p){return p&&!p.thought;}).map(function(p){return p.text||'';}).join('');
       }else if(data.choices&&data.choices[0]&&data.choices[0].delta){delta=String(data.choices[0].delta.content||'');}
@@ -122,7 +150,7 @@
   buffer+=decoder.decode();if(buffer.trim())processLine(buffer);
   return parts.join('');
 }
-async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stream=false,onDelta}={}){
+async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stream=false,onDelta,onUsage}={}){
     const endpoint=stream?'streamGenerateContent?alt=sse':'generateContent';
     const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':'+endpoint;
     const generationConfig={maxOutputTokens:maxTokens};
@@ -130,46 +158,47 @@ async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stre
     const res=await fetch(url,{method:'POST',signal,headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},
       body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents,generationConfig})});
     let data=null,text='';
-    if(stream && res.ok)text=await readSSE(res,onDelta,signal);
-    else{try{data=await res.json();}catch(e){}text=extractGemini(data);}
+    if(stream && res.ok)text=await readSSE(res,onDelta,signal,d=>{const u=extractUsage(d);if(u&&onUsage)onUsage(u,d);});
+    else{try{data=await res.json();}catch(e){}text=extractGemini(data);const u=extractUsage(data);if(u&&onUsage)onUsage(u,data);}
     return {res,data,text};
   }
-  async function callProvider(p,apiKey,system,history,userText,maxTokens,{signal,onDelta}={}){
+  async function callProvider(p,apiKey,system,history,userText,maxTokens,{signal,onDelta,onUsage}={}){
     const historyText=historyMessages(history);
     let res,data,text='';
     if(p.kind==='gemini'){
       const contents=[...historyText,{role:'user',content:String(userText||'')}].map(m=>({
         role:m.role==='assistant'?'model':'user',parts:[{text:String(m.content||'')}]
       }));
-      let result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta});
-      if(result.res.ok&&!result.text.trim())result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:false,onDelta:null});
+      let result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta,onUsage});
+      if(result.res.ok&&!result.text.trim())result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:false,onDelta:null,onUsage});
       if(!result.res.ok && result.res.status===503){
         await sleep(250,signal);
         result=await geminiRequest(p.model,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta});
       }
       if(!result.res.ok && result.res.status===503){
         const fallback='gemini-3.7-flash';
-        result=await geminiRequest(fallback,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta});
+        result=await geminiRequest(fallback,apiKey,system,contents,maxTokens,{signal,stream:true,onDelta,onUsage});
       }
       res=result.res;data=result.data;text=result.text;
     }else if(p.kind==='anthropic'){
       res=await fetch(p.url,{method:'POST',signal,headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({model:p.model,max_tokens:maxTokens,stream:true,system,messages:[...historyText,{role:'user',content:String(userText||'')}].map(m=>({role:m.role,content:m.content}))})});
-      if(res.ok)text=await readSSE(res,onDelta,signal);else{try{data=await res.json();}catch(e){}}
+      if(res.ok)text=await readSSE(res,onDelta,signal,d=>{const u=extractUsage(d);if(u&&onUsage)onUsage(u,d);});else{try{data=await res.json();}catch(e){}}
     }else{
       if(!p.url)throw new Error('Custom providers need a custom endpoint.');
       res=await fetch(p.url,{method:'POST',signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
-        body:JSON.stringify({model:p.model,messages:[{role:'system',content:system},...historyText,{role:'user',content:String(userText||'')}],max_completion_tokens:maxTokens,stream:true})});
+        body:JSON.stringify({model:p.model,messages:[{role:'system',content:system},...historyText,{role:'user',content:String(userText||'')}],max_completion_tokens:maxTokens,stream:true,stream_options:{include_usage:true}})});
       if(res.ok)text=await readSSE(res,onDelta,signal);else{try{data=await res.json();}catch(e){}}
     }
     if(!res.ok){
       const msg=data&&data.error&&(data.error.message||data.error.type);
-      throw new Error((p.label||'AI provider')+' error ('+res.status+'): '+(msg||'Request failed.'));
+      const err=new Error((p.label||'AI provider')+' error ('+res.status+'): '+(msg||'Request failed.'));
+      err.providerStatus=res.status;err.providerQuotaExhausted=quotaExhausted(res,data);err.providerRateLimit=rateLimitInfo(res);err.providerError=data&&data.error||null;throw err;
     }
     if(!text.trim())throw new Error((p.label||'AI provider')+' returned an empty response.');
     return text;
   }
-  async function respond({prevSpec,userText,history,status,signal,onDelta}){
+  async function respond({prevSpec,userText,history,status,signal,onDelta,onUsage}){
     const auth=window.g3dAuth;
     let vault=auth&&auth.apiVaultStatus?auth.apiVaultStatus():null;
     if(vault&&vault.saved&&!vault.key&&auth&&auth.unlockApiKey){
@@ -181,12 +210,12 @@ async function geminiRequest(model,apiKey,system,contents,maxTokens,{signal,stre
     const build=wantsModel(userText,prevSpec);
     if(status)status.textContent=p.label+' is thinking…';
     if(build){
-      const raw=await callProvider(p,vault.key,modelSystem(prevSpec,history),history,userText,420,{signal,onDelta:null});
+      const raw=await callProvider(p,vault.key,modelSystem(prevSpec,history),history,userText,420,{signal,onDelta:null,onUsage});
       const parsed=parseModelJSON(raw);
       if(parsed.mode!=='model')throw new Error('The provider did not return a valid model response.');
       return {mode:'model',reply:String(parsed.reply||'I’ll build that.'),spec:parsed.spec||parsed};
     }
-    const raw=await callProvider(p,vault.key,chatSystem(history),history,userText,180,{signal,onDelta});
+    const raw=await callProvider(p,vault.key,chatSystem(history),history,userText,180,{signal,onDelta,onUsage});
     return {mode:'chat',reply:raw.trim()};
   }
   window.g3dCloud={respond,info,providerConfig:PROVIDERS};
