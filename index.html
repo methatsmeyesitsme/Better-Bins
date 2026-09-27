@@ -229,7 +229,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.79</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.81</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -240,7 +240,7 @@ button:disabled{opacity:.5;cursor:default;}
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.79</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.81</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -388,7 +388,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.79</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.81</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -775,7 +775,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.79.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.81.js');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
@@ -785,10 +785,23 @@ meshWorker.addEventListener('message',e=>{
   if(m.type==='result'){meshWaiters.delete(m.id);w.resolve(m.data);return;}
   if(m.type==='error'){meshWaiters.delete(m.id);w.reject(new Error(m.message||'Mesh worker failed.'));return;}
 });
+let activeAIMeshRequestId=null;
+function cancelMeshRequest(id){
+  if(!id)return false;
+  const waiter=meshWaiters.get(id);
+  if(waiter)meshWaiters.delete(id);
+  try{meshWorker.postMessage({type:'cancel',id});}catch(e){}
+  if(waiter){waiter.reject(new DOMException('Aborted','AbortError'));return true;}
+  return false;
+}
 async function getMeshFromWorker(spec,res,key,mode){
   const cacheKey=key?mode+':'+key:null;if(cacheKey&&meshCache.has(cacheKey))return meshCache.get(cacheKey);
-  const id=++meshRequestId;const data=await new Promise((resolve,reject)=>{meshWaiters.set(id,{resolve,reject});meshWorker.postMessage({type:'mesh',id,mode:mode||'ai',spec,res});});
-  if(cacheKey){meshCache.set(cacheKey,data);if(meshCache.size>6)meshCache.delete(meshCache.keys().next().value);}return data;
+  const id=++meshRequestId;if(mode==='ai')activeAIMeshRequestId=id;
+  try{
+    const data=await new Promise((resolve,reject)=>{meshWaiters.set(id,{resolve,reject});meshWorker.postMessage({type:'mesh',id,mode:mode||'ai',spec,res});});
+    if(cacheKey){meshCache.set(cacheKey,data);if(meshCache.size>6)meshCache.delete(meshCache.keys().next().value);}
+    return data;
+  }finally{if(mode==='ai'&&activeAIMeshRequestId===id)activeAIMeshRequestId=null;}
 }
 
 const CHAT_KEY='g3d_ai_chats_v1';
@@ -1226,7 +1239,7 @@ async function generateAI(){
   if(!usageCanSend())return;
   if(!text){status.textContent='Say something first.';return;}
   const x=getChat()||newChat();
-  btn.disabled=true;stopBtn.hidden=false;window.g3dAIRequestActive=true;document.getElementById('aiInfoCard').style.display='none';
+  btn.disabled=true;stopBtn.hidden=false;window.g3dAIRequestActive=true;window.g3dAIStopRequested=false;document.getElementById('aiInfoCard').style.display='none';
   addMessage('user',text);
   const usageEntryRef={id:'u_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),at:Date.now(),chatId:activeChatId||'unknown',message:text,inputTokens:0,outputTokens:0,totalTokens:0};
   const active=getChat(),history=buildAIContext(active&&Array.isArray(active.messages)?active.messages:[],text);
@@ -1272,6 +1285,7 @@ async function generateAI(){
     const spec=mergeAISpec(raw.spec||raw,aiPrevSpec);
     status.textContent='Building the model…';
     const key=JSON.stringify(spec),tris=await getMeshFromWorker(spec,spec.quality,key,'ai');
+    if(window.g3dAIStopRequested)throw new DOMException('Aborted','AbortError');
     if(!tris.length){pendingMsg.text='I couldn’t build a printable surface from that request. Try changing the dimensions or description.';status.textContent=pendingMsg.text;active.updated=Date.now();saveChats();renderChat();return;}
     aiPrevSpec=spec;lastTrisAI=tris;lastFilenameAI=nameFromSpec(spec).replace(/\s+/g,'_')+'.stl';
     const triCount=Math.floor(tris.length/12),stl=trisToSTL(tris);
@@ -1299,7 +1313,7 @@ async function generateAI(){
       active.updated=Date.now();saveChats();renderChats();renderChat();
     }
   }finally{
-    aiAbortController=null;window.g3dAIRequestActive=false;stopBtn.hidden=true;promptEl.value='';promptEl.style.height='auto';updateUsageUI();
+    aiAbortController=null;window.g3dAIRequestActive=false;window.g3dAIStopRequested=false;stopBtn.hidden=true;promptEl.value='';promptEl.style.height='auto';updateUsageUI();
     if(readUsage().quotaExhausted)showUsageLimitPopup();
   }
 }
@@ -1314,7 +1328,23 @@ aiSendBtn.addEventListener('click',sendCurrentPrompt);
 aiComposerForm.addEventListener('submit',e=>{e.preventDefault();sendCurrentPrompt(e);});
 aiPromptEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiComposerForm.requestSubmit();}});
 aiPromptEl.addEventListener('input',()=>{aiPromptEl.style.height='auto';aiPromptEl.style.height=Math.min(aiPromptEl.scrollHeight,150)+'px';});
-aiStopBtn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();if(aiAbortController)aiAbortController.abort();});
+function stopActiveAI(){
+  if(!window.g3dAIRequestActive)return;
+  window.g3dAIStopRequested=true;
+  if(aiAbortController){try{aiAbortController.abort();}catch(e){}}
+  if(activeAIMeshRequestId)cancelMeshRequest(activeAIMeshRequestId);
+  const status=document.getElementById('aiStatus');if(status)status.textContent='Stopping…';
+}
+aiStopBtn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();stopActiveAI();});
+document.addEventListener('visibilitychange',()=>{
+  if(!window.g3dAIRequestActive)return;
+  const status=document.getElementById('aiStatus');
+  if(status){
+    if(document.visibilityState==='hidden')status.textContent='Running in background…';
+    else status.textContent='G3D AI is running…';
+  }
+});
+
 document.getElementById('aiNewBtn').addEventListener('click',function(){newChat();aiPromptEl.focus();});
 
 // ================= Account UI + persistence gating =================
