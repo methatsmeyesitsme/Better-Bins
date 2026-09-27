@@ -217,7 +217,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.64</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.66</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -228,7 +228,7 @@ button:disabled{opacity:.5;cursor:default;}
 <div class="drawerShade" id="drawerShade"></div>
 <section class="settingsPanel" id="settingsPanel" aria-hidden="true">
   <div class="settingsInner">
-    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.64</p></div><button class="settingsClose" id="settingsClose">×</button></div>
+    <div class="settingsTop"><div><h1 style="margin:0;">Settings</h1><p class="sub" style="margin:4px 0 0;">G3D v1.66</p></div><button class="settingsClose" id="settingsClose">×</button></div>
     <div class="settingsCard">
       <p class="sectitle">Account</p>
       <div id="accountState" class="hint" style="margin:0 0 10px;">Not signed in. Chats and artifacts are not saved.</div>
@@ -367,7 +367,7 @@ button:disabled{opacity:.5;cursor:default;}
   <div class="aiChatShell">
     <div class="aiChatHeader">
       <div>
-        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.64</span></div>
+        <div class="aiChatTitle">G3D AI <span style="font-size:.62rem;color:var(--sub);font-weight:500;">v1.66</span></div>
         <div class="hint" style="margin:3px 0 0;">Your AI design conversation</div>
       </div>
       <div class="aiChatTools">
@@ -754,7 +754,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.64.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.66.js');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
@@ -1007,13 +1007,13 @@ function readUsage(){
   try{
     const raw=localStorage.getItem(k),v=raw?JSON.parse(raw):null;
     if(!v||v.month!==month){
-      const rec={month,day:today,requests:0,inputTokens:0,outputTokens:0,totalTokens:0,quotaExhausted:false,quotaMessage:'',lastUsageAt:0,lastProviderLimit:null};
+      const rec={month,day:today,requests:0,inputTokens:0,outputTokens:0,totalTokens:0,quotaExhausted:false,quotaMessage:'',lastUsageAt:0,lastProviderLimit:null,detectedMonthlyLimit:null};
       localStorage.setItem(k,JSON.stringify(rec));return rec;
     }
     if(v.day!==today)v.day=today;
     return v;
   }catch(e){
-    return {month,day:today,requests:0,inputTokens:0,outputTokens:0,totalTokens:0,quotaExhausted:false,quotaMessage:'',lastUsageAt:0,lastProviderLimit:null};
+    return {month,day:today,requests:0,inputTokens:0,outputTokens:0,totalTokens:0,quotaExhausted:false,quotaMessage:'',lastUsageAt:0,lastProviderLimit:null,detectedMonthlyLimit:null};
   }
 }
 function writeUsage(rec){try{localStorage.setItem(providerUsageKey(),JSON.stringify(rec));}catch(e){}}
@@ -1026,16 +1026,14 @@ function formatTokens(n){
 function updateUsageStatusText(){
   const status=document.getElementById('usageLimitStatus');if(!status)return;
   const rec=readUsage();
+  const monthly=rec.detectedMonthlyLimit;
   if(rec.quotaExhausted){
-    status.textContent='Provider limit detected: '+(rec.quotaMessage||'the provider rejected further usage')+'. G3D is locked until '+monthResetDate().toLocaleDateString(undefined,{month:'long',day:'numeric'})+'.';
+    status.innerHTML='<strong>Monthly limit:</strong> '+(monthly!==null?esc(String(monthly)):'Not exposed by provider API')+'<br>Detected usage: '+rec.requests+' requests · '+formatTokens(rec.totalTokens)+' tokens.<br>Provider limit reached: '+esc(rec.quotaMessage||'the provider rejected further usage')+'. Resets '+monthResetDate().toLocaleDateString(undefined,{month:'long',day:'numeric'})+'.';
     return;
   }
+  const monthlyText=monthly!==null?String(monthly):'Not exposed by provider API';
   const rl=rec.lastProviderLimit;
-  if(rl&&Number.isFinite(rl.limit)){
-    status.textContent='Detected this month: '+rec.requests+' requests · '+formatTokens(rec.totalTokens)+' tokens. Provider request limit: '+rl.limit+' per day · '+rl.remaining+' remaining.';
-  }else{
-    status.textContent='Detected this month: '+rec.requests+' requests · '+formatTokens(rec.totalTokens)+' tokens. Monthly account limit is not exposed through this API key.';
-  }
+  status.innerHTML='<strong>Monthly limit:</strong> '+esc(monthlyText)+'<br>Detected usage: '+rec.requests+' requests · '+formatTokens(rec.totalTokens)+' tokens.'+(rl&&Number.isFinite(rl.limit)?'<br>Provider request limit: '+rl.limit+' · '+rl.remaining+' remaining.':'');
 }
 function updateUsageUI(){
   const banner=document.getElementById('aiUsageBanner'),send=document.getElementById('aiSendBtn'),prompt=document.getElementById('aiPrompt');
@@ -1062,7 +1060,7 @@ function recordProviderUsage(usage,data,rateLimit){
   rec.outputTokens=(rec.outputTokens||0)+(Number(usage.outputTokens)||0);
   rec.totalTokens=(rec.totalTokens||0)+(Number(usage.totalTokens)||0);
   rec.lastUsageAt=Date.now();
-  if(rateLimit)rec.lastProviderLimit=rateLimit;
+  if(rateLimit){rec.lastProviderLimit=rateLimit;if(rateLimit.monthlyLimit!==null&&rateLimit.monthlyLimit!==undefined)rec.detectedMonthlyLimit=rateLimit.monthlyLimit;}
   writeUsage(rec);updateUsageUI();
 }
 function recordProviderQuota(err){
@@ -1070,7 +1068,7 @@ function recordProviderQuota(err){
   const rec=readUsage();
   rec.quotaExhausted=true;
   rec.quotaMessage=(err.message||'Provider usage limit reached').replace(/^.*error \(\d+\):\s*/,'');
-  if(err.providerRateLimit)rec.lastProviderLimit=err.providerRateLimit;
+  if(err.providerRateLimit){rec.lastProviderLimit=err.providerRateLimit;if(err.providerRateLimit.monthlyLimit!==null&&err.providerRateLimit.monthlyLimit!==undefined)rec.detectedMonthlyLimit=err.providerRateLimit.monthlyLimit;}
   writeUsage(rec);updateUsageUI();
 }
 function usageCanSend(){
