@@ -157,23 +157,24 @@ function textSDF(x,y,z,labels,bmin,bmax){
     const total=Math.max(0,text.length*advance-gap),px=bmin[0]+(bmax[0]-bmin[0])*clamp((Number(t.x)||50)/100,0,1)-total/2;
     const pz=bmin[2]+(bmax[2]-bmin[2])*clamp((Number(t.y)||50)/100,0,1)-H/2;
     const depth=Math.max(0.2,Number(t.depth)||1);
+    const embed=Math.min(0.4,depth*0.45);
     for(let ci=0;ci<text.length;ci++){
       const rows=FONT5x7[text[ci]]||FONT5x7[" "],cw=(rows[0]||"00000").length;
       for(let ry=0;ry<7;ry++)for(let rx=0;rx<cw;rx++)if(rows[ry][rx]==="1"){
         const bx=px+ci*advance+rx*pixel,by=pz+(6-ry)*pixel;
         let d;
         if(t.side==="front"||t.side==="back"){
-          const yy=t.side==="front"?bmax[1]+depth/2:bmin[1]-depth/2;
+          const yy=t.side==="front"?bmax[1]+depth/2-embed:bmin[1]-depth/2+embed;
           d=roundedBox(x-(bx+pixel/2),y-yy,z-(by+pixel/2),pixel/2+0.05,depth/2,pixel/2+0.05);
         }else if(t.side==="left"||t.side==="right"){
           const yy=bmin[1]+(bmax[1]-bmin[1])*clamp((Number(t.x)||50)/100,0,1)-total/2+ci*advance+rx*pixel;
           const zz=by;
-          const xx=t.side==="right"?bmax[0]+depth/2:bmin[0]-depth/2;
+          const xx=t.side==="right"?bmax[0]+depth/2-embed:bmin[0]-depth/2+embed;
           d=roundedBox(x-xx,y-(yy+pixel/2),z-(zz+pixel/2),depth/2,pixel/2+0.05,pixel/2+0.05);
         }else{
           const bx2=px+ci*advance+rx*pixel;
           const yy=bmin[1]+(bmax[1]-bmin[1])*clamp((Number(t.y)||50)/100,0,1)-H/2;
-          const zz=t.side==="top"?bmax[2]+depth/2:bmin[2]-depth/2;
+          const zz=t.side==="top"?bmax[2]+depth/2-embed:bmin[2]-depth/2+embed;
           d=roundedBox(x-(bx2+pixel/2),y-(yy+pixel/2),z-zz,pixel/2+0.05,pixel/2+0.05,depth/2);
         }
         if(d<f)f=d;
@@ -209,10 +210,10 @@ function buildFieldAndBounds(spec){
   const textureAmount=Math.max(0,Math.min(100,Number(spec.textureAmount)||0))/100;
   // Texture uses small, rounded, randomly scattered dome bumps.
   // Higher texture amounts increase density rather than bump size.
-  const textureCycles=8+textureAmount*16;
+  const textureCycles=8+textureAmount*24;
   const textureCell=span/Math.max(1,textureCycles);
   const textureBumpRadius=textureCell*0.34;
-  const textureAmp=textureOn ? Math.min(0.58,Math.max(0.12,span*0.005)*textureAmount) : 0;
+  const textureAmp=textureOn ? Math.min(0.78,Math.max(0.12,span*0.0065)*textureAmount) : 0;
   // Fast integer hash: same deterministic random-looking texture without expensive trig.
   const hash3=(ix,iy,iz)=>{
     let n=(Math.imul(ix,374761393)^Math.imul(iy,668265263)^Math.imul(iz,2147483647))|0;
@@ -223,6 +224,8 @@ function buildFieldAndBounds(spec){
   const texturedBase=(x,y,z)=>{
     const b=baseWithText(x,y,z);
     if(!textureOn)return b;
+    // Keep the flat bottom surface completely free of texture bumps.
+    if(y-bmin[1] < textureBumpRadius)return b;
     const fx=x/textureCell,fy=y/textureCell,fz=z/textureCell;
     const ix=Math.floor(fx),iy=Math.floor(fy),iz=Math.floor(fz);
     let nearestDist=Infinity;
@@ -261,7 +264,10 @@ function buildFieldAndBounds(spec){
           : Math.sin(k*x)*Math.cos(k*y)+Math.sin(k*y)*Math.cos(k*z)+Math.sin(k*z)*Math.cos(k*x)
     )-t;
     const patternField=Math.max(texturedBase(x,y,z),lattice);
-    return wallOn ? Math.min(patternField,shell(x,y,z)) : patternField;
+    // Text is a raised feature, so apply it after the infill field.
+    const textField=textOn ? textSDF(x,y,z,textLabels,bmin,bmax) : Infinity;
+    const finalField=Math.min(patternField,textField);
+    return wallOn ? Math.min(finalField,shell(x,y,z)) : finalField;
   },bmin,bmax,pattern:{kind:pattern,k,t}};
 }
 function repairBoundaryLoops(tris){
