@@ -81,6 +81,20 @@ function makePartSDF(p){
     X/=sx;Y/=sy;Z/=sz;
     switch(type){
       case "sphere": return Math.hypot(X,Y,Z)-radius;
+      case "gumdrop":{
+        const u=Math.max(0,Math.min(1,(Z+height/2)/height));
+        const smooth=q=>q*q*(3-2*q);
+        let profile;
+        if(u<0.12){
+          profile=radius*(0.82+0.18*smooth(u/0.12));
+        }else if(u<0.62){
+          profile=radius;
+        }else{
+          profile=radius*(1-smooth((u-0.62)/0.38));
+        }
+        const radial=Math.hypot(X,Y);
+        return Math.max(radial-profile,-(Z+height/2),Z-height/2);
+      }
       case "cylinder":{
         const qx=Math.hypot(X,Y)-radius,qz=Math.abs(Z)-height/2;
         const ax=Math.max(qx,0),az=Math.max(qz,0);
@@ -109,6 +123,7 @@ function partBounds(p){
   let r=10,z=10;
   switch(p.type){
     case "sphere": r=p.radius||20;z=r;break;
+    case "gumdrop": r=p.radius||20;z=(p.height||40)/2;break;
     case "cylinder":
     case "tube": r=Math.max(p.radius||p.outerRadius||20,p.innerRadius||0);z=(p.height||40)/2;break;
     case "cone": r=Math.max(p.radius||20,p.radius2||10);z=(p.height||40)/2;break;
@@ -339,6 +354,7 @@ async function generateMesh(fieldFn,res,bmin,bmax,id,patternData){
 function legacyPatternToSpec(p){
   let part;
   if(p.shape==="sphere")part={type:"sphere",radius:(p.diameter||50)/2,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"};
+  else if(p.shape==="gumdrop")part={type:"gumdrop",radius:(p.diameter||50)/2,height:p.height||55,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"};
   else if(p.shape==="cylinder")part={type:"cylinder",radius:(p.diameter||50)/2,height:p.height||50,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"};
   else if(p.shape==="ring"){const minor=(p.tubeDiameter||16)/2,major=Math.max(minor+0.5,(p.outerDiameter||60)/2-minor);part={type:"torus",majorRadius:major,minorRadius:minor,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"};}
   else{const size=p.size||50;part=p.rounded?{type:"roundedBox",size:[size,size,size],radius:Math.min(p.cornerRadius||5,size/2),position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"}:{type:"box",size:[size,size,size],position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"};}
