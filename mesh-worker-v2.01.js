@@ -163,20 +163,11 @@ function textSDF(x,y,z,labels,bmin,bmax){
       for(let ry=0;ry<7;ry++)for(let rx=0;rx<cw;rx++)if(rows[ry][rx]==="1"){
         const bx=px+ci*advance+rx*pixel,by=pz+(6-ry)*pixel;
         let d;
-        if(t.side==="front"||t.side==="back"){
-          const yy=t.side==="front"?bmax[1]+depth/2-embed:bmin[1]-depth/2+embed;
-          d=roundedBox(x-(bx+pixel/2),y-yy,z-(by+pixel/2),pixel/2+0.05,depth/2,pixel/2+0.05);
-        }else if(t.side==="left"||t.side==="right"){
-          const yy=bmin[1]+(bmax[1]-bmin[1])*clamp((Number(t.x)||50)/100,0,1)-total/2+ci*advance+rx*pixel;
-          const zz=by;
-          const xx=t.side==="right"?bmax[0]+depth/2-embed:bmin[0]-depth/2+embed;
-          d=roundedBox(x-xx,y-(yy+pixel/2),z-(zz+pixel/2),depth/2,pixel/2+0.05,pixel/2+0.05);
-        }else{
-          const bx2=px+ci*advance+rx*pixel;
-          const yy=bmin[1]+(bmax[1]-bmin[1])*clamp((Number(t.y)||50)/100,0,1)-H/2;
-          const zz=t.side==="top"?bmax[2]+depth/2-embed:bmin[2]-depth/2+embed;
-          d=roundedBox(x-(bx2+pixel/2),y-(yy+pixel/2),z-zz,pixel/2+0.05,pixel/2+0.05,depth/2);
-        }
+        // Pattern Generator text is placed on the bottom (Z-min) face.
+        const bx2=px+ci*advance+rx*pixel;
+        const yy=bmin[1]+(bmax[1]-bmin[1])*clamp((Number(t.y)||50)/100,0,1)-H/2;
+        const zz=bmin[2]-depth/2+embed;
+        d=roundedBox(x-(bx2+pixel/2),y-(yy+pixel/2),z-zz,pixel/2+0.05,pixel/2+0.05,depth/2);
         if(d<f)f=d;
       }
     }
@@ -203,7 +194,19 @@ function buildFieldAndBounds(spec){
   };
   const textLabels=Array.isArray(spec.textLabels)?spec.textLabels:[];
   const textOn=textLabels.length>0;
-  const baseWithText=(x,y,z)=>textOn?Math.min(base(x,y,z),textSDF(x,y,z,textLabels,bmin,bmax)):base(x,y,z);
+  // Keep the original model bounds for text positioning, then expand the
+  // meshing bounds so the raised bottom text is actually sampled.
+  const modelMin=bmin.slice(),modelMax=bmax.slice();
+  if(textOn){
+    let extra=0;
+    for(const t of textLabels){
+      const depth=Math.max(0.2,Number(t.depth)||1);
+      const size=Math.max(1,Number(t.size)||8);
+      extra=Math.max(extra,depth+size*0.04);
+    }
+    bmin[2]-=extra;
+  }
+  const baseWithText=(x,y,z)=>textOn?Math.min(base(x,y,z),textSDF(x,y,z,textLabels,modelMin,modelMax)):base(x,y,z);
   const pattern=spec.pattern||"none";
   const span=Math.max(bmax[0]-bmin[0],bmax[1]-bmin[1],bmax[2]-bmin[2],1);
   const textureOn=!!spec.texture && Number(spec.textureAmount)>0;
