@@ -229,7 +229,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.99</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v2.00</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -374,13 +374,13 @@ button:disabled{opacity:.5;cursor:default;}
     </div>
     <div class="checkrow">
       <input type="checkbox" id="wallsToggle">
-      <label for="wallsToggle">Side walls</label>
+      <label for="wallsToggle">Side + top/bottom walls</label>
     </div>
     <div id="wallControls" style="display:none;">
       <label for="wallThickness">Wall thickness (mm)</label>
       <input type="number" id="wallThickness" value="2" step="0.1" min="0.2" max="20">
     </div>
-    <p class="hint">Texture adds raised bumps to the outside. Side walls add a solid outer wall around the pattern.</p>
+    <p class="hint">Texture adds raised bumps to the outside. Side + top/bottom walls add a solid enclosing wall around the pattern.</p>
     <div class="checkrow">
       <input type="checkbox" id="textToggle">
       <label for="textToggle">Text</label>
@@ -850,7 +850,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v1.99.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v2.00.js');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
