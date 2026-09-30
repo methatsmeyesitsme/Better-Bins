@@ -82,13 +82,17 @@ function makePartSDF(p){
     switch(type){
       case "sphere": return Math.hypot(X,Y,Z)-radius;
       case "gumdrop":{
-        // Upright gumdrop with its vertical axis on Y (the viewer's up axis):
-        // a straight cylinder on the bottom and a hemispherical dome on top.
+        // Upright gumdrop: a straight cylindrical lower body with a true
+        // hemispherical dome that stays rounded all the way to the exact top.
+        // The dome radius matches the body radius, so the cylinder-to-dome
+        // join is smooth and there is no flat top cap.
         const domeR=radius;
+        const bottomY=-height/2;
+        const domeCenterY=height/2-domeR;
         const cylinderH=Math.max(0.01,height-domeR);
-        const seamY=-height/2+cylinderH;
-        const cyl=cappedCylinderSDF(X,Z,Y-seamY+domeR*0+cylinderH/2,domeR,cylinderH/2);
-        const dome=Math.hypot(X,Z,Y-seamY)-domeR;
+        const cylinderCenterY=bottomY+cylinderH/2;
+        const cyl=cappedCylinderSDF(X,Z,Y-cylinderCenterY,domeR,cylinderH/2);
+        const dome=sphereSDF(X,Z,Y-domeCenterY,domeR);
         return Math.min(cyl,dome);
       }
       case "cylinder":{
