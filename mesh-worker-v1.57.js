@@ -142,11 +142,36 @@ function buildFieldAndBounds(spec){
     return f;
   };
   const pattern=spec.pattern||"none";
-  if(pattern==="none")return{field:base,bmin,bmax,pattern:null};
   const span=Math.max(bmax[0]-bmin[0],bmax[1]-bmin[1],bmax[2]-bmin[2],1);
+  const textureOn=!!spec.texture && Number(spec.textureAmount)>0;
+  const textureAmount=Math.max(0,Math.min(100,Number(spec.textureAmount)||0))/100;
+  const textureAmp=textureOn ? Math.min(3.5,Math.max(0.15,span*0.012)*textureAmount) : 0;
+  const textureK=2*Math.PI*(6+textureAmount*8)/span;
+  const texturedBase=(x,y,z)=>{
+    if(!textureOn)return base(x,y,z);
+    const sx=Math.sin(x*textureK),sy=Math.sin(y*textureK),sz=Math.sin(z*textureK);
+    const bump=Math.pow(Math.max(0,(sx*sy*sz+1)/2),1.35);
+    return base(x,y,z)-textureAmp*bump;
+  };
+  const wallOn=!!spec.walls && Number(spec.wallThickness)>0;
+  const wallThickness=Math.max(0.2,Math.min(span/2,Number(spec.wallThickness)||0));
+  const shell=wallOn ? (x,y,z)=>Math.max(texturedBase(x,y,z),-texturedBase(x,y,z)-wallThickness) : null;
+  if(pattern==="none"){
+    return{field:wallOn ? shell : texturedBase,bmin,bmax,pattern:null};
+  }
   const k=2*Math.PI*(spec.periods||2.5)/span;
   const t=Math.max(0.15,(spec.thickness||1.5)*k/2);
-  return{field:base,bmin,bmax,pattern:{kind:pattern,k,t}};
+  return{field:(x,y,z)=>{
+    const lattice=Math.abs(
+      pattern==="schwarzp"
+        ? Math.cos(k*x)+Math.cos(k*y)+Math.cos(k*z)
+        : pattern==="diamond"
+          ? Math.sin(k*x)*Math.sin(k*y)*Math.sin(k*z)+Math.sin(k*x)*Math.cos(k*y)*Math.cos(k*z)+Math.cos(k*x)*Math.sin(k*y)*Math.cos(k*z)+Math.cos(k*x)*Math.cos(k*y)*Math.sin(k*z)
+          : Math.sin(k*x)*Math.cos(k*y)+Math.sin(k*y)*Math.cos(k*z)+Math.sin(k*z)*Math.cos(k*x)
+    )-t;
+    const patternField=Math.max(texturedBase(x,y,z),lattice);
+    return wallOn ? Math.min(patternField,shell(x,y,z)) : patternField;
+  },bmin,bmax,pattern:{kind:pattern,k,t}};
 }
 function repairBoundaryLoops(tris){
  const n=Math.floor(tris.length/12),verts=[],map=new Map(),edges=new Map();
@@ -276,7 +301,7 @@ function legacyPatternToSpec(p){
   else if(p.shape==="cylinder")part={type:"cylinder",radius:(p.diameter||50)/2,height:p.height||50,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"};
   else if(p.shape==="ring"){const minor=(p.tubeDiameter||16)/2,major=Math.max(minor+0.5,(p.outerDiameter||60)/2-minor);part={type:"torus",majorRadius:major,minorRadius:minor,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"};}
   else{const size=p.size||50;part=p.rounded?{type:"roundedBox",size:[size,size,size],radius:Math.min(p.cornerRadius||5,size/2),position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"}:{type:"box",size:[size,size,size],position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"};}
-  return{parts:[part],pattern:p.pattern||"gyroid",periods:Number(p.periods)||2.5,thickness:Number(p.thickness)||1.5};
+  return{parts:[part],pattern:p.pattern||"gyroid",periods:Number(p.periods)||2.5,thickness:Number(p.thickness)||1.5,texture:!!p.texture,textureAmount:Number(p.textureAmount)||0,walls:!!p.walls,wallThickness:Number(p.wallThickness)||0};
 }
 self.onmessage=async(e)=>{
   const m=e.data||{};
