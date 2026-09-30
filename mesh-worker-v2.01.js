@@ -153,29 +153,35 @@ function textSDF(x,y,z,labels,bmin,bmax,bottomAxisY=false){
   let f=Infinity;
   for(const t of labels||[]){
     const text=String(t.text||'').toUpperCase();
-    const H=Math.max(1,Number(t.size)||8),pixel=H/7,gap=pixel*0.32,advance=5*pixel+gap*2;
-    const total=Math.max(0,text.length*advance-gap),px=bmin[0]+(bmax[0]-bmin[0])*clamp((Number(t.x)||50)/100,0,1)-total/2;
-    const pz=bmin[2]+(bmax[2]-bmin[2])*clamp((Number(t.y)||50)/100,0,1)-H/2;
-    // Give text a substantial extrusion so the voxel/tetrahedral mesh cannot
-    // miss a thin feature at the bottom surface.
+    const H=Math.max(1,Number(t.size)||8);
+    const pixel=H/7,gap=pixel*0.32,advance=5*pixel+gap*2;
+    const total=Math.max(0,text.length*advance-gap);
+    const px=bmin[0]+(bmax[0]-bmin[0])*clamp((Number(t.x)||50)/100,0,1)-total/2;
     const depth=Math.max(1.5,Number(t.depth)||1);
     const embed=Math.min(0.75,depth*0.5);
+
+    // The bottom face has two in-plane axes:
+    // normal shapes: X/Y plane at Z-min
+    // gumdrop: X/Z plane at Y-min
+    const inPlaneMin=bottomAxisY?bmin[2]:bmin[1];
+    const inPlaneMax=bottomAxisY?bmax[2]:bmax[1];
+    const centerV=inPlaneMin+(inPlaneMax-inPlaneMin)*clamp((Number(t.y)||50)/100,0,1);
+    const baseV=centerV-H/2;
+
     for(let ci=0;ci<text.length;ci++){
       const rows=FONT5x7[text[ci]]||FONT5x7[" "],cw=(rows[0]||"00000").length;
       for(let ry=0;ry<7;ry++)for(let rx=0;rx<cw;rx++)if(rows[ry][rx]==="1"){
-        const bx=px+ci*advance+rx*pixel,by=pz+(6-ry)*pixel;
-        let d;
         const bx2=px+ci*advance+rx*pixel;
+        const v=baseV+(6-ry)*pixel;
+        let d;
         if(bottomAxisY){
-          // Gumdrop's vertical axis is Y, so its bottom is the Y-min face.
-          const zz=bmin[2]+(bmax[2]-bmin[2])*clamp((Number(t.y)||50)/100,0,1)-H/2;
+          // Gumdrop bottom is Y-min; X/Z are the lettering plane.
           const yy=bmin[1]-depth/2+embed;
-          d=roundedBox(x-(bx2+pixel/2),y-yy,z-(zz+pixel/2),pixel/2+0.05,depth/2,pixel/2+0.05);
+          d=roundedBox(x-(bx2+pixel/2),y-yy,z-(v+pixel/2),pixel/2+0.05,depth/2,pixel/2+0.05);
         }else{
-          // Normal printable shapes use Z as the vertical axis.
-          const yy=bmin[1]+(bmax[1]-bmin[1])*clamp((Number(t.y)||50)/100,0,1)-H/2;
+          // Normal shapes bottom is Z-min; X/Y are the lettering plane.
           const zz=bmin[2]-depth/2+embed;
-          d=roundedBox(x-(bx2+pixel/2),y-(yy+pixel/2),z-zz,pixel/2+0.05,pixel/2+0.05,depth/2);
+          d=roundedBox(x-(bx2+pixel/2),y-(v+pixel/2),z-zz,pixel/2+0.05,pixel/2+0.05,depth/2);
         }
         if(d<f)f=d;
       }
