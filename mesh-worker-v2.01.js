@@ -149,7 +149,7 @@ const FONT5x7={
 "0":["01110","10001","10011","10101","11001","10001","01110"],"1":["00100","01100","00100","00100","00100","00100","01110"],"2":["01110","10001","00001","00010","00100","01000","11111"],"3":["11110","00001","00001","01110","00001","00001","11110"],"4":["00010","00110","01010","10010","11111","00010","00010"],"5":["11111","10000","10000","11110","00001","00001","11110"],"6":["01110","10000","10000","11110","10001","10001","01110"],"7":["11111","00001","00010","00100","01000","01000","01000"],"8":["01110","10001","10001","01110","10001","10001","01110"],"9":["01110","10001","10001","01111","00001","00001","01110"],
 " ":["000","000","000","000","000","000","000"],"-":["00000","00000","00000","11111","00000","00000","00000"],"_":["00000","00000","00000","00000","00000","00000","11111"]
 };
-function textSDF(x,y,z,labels,bmin,bmax){
+function textSDF(x,y,z,labels,bmin,bmax,bottomAxisY=false){
   let f=Infinity;
   for(const t of labels||[]){
     const text=String(t.text||'').toUpperCase();
@@ -163,11 +163,18 @@ function textSDF(x,y,z,labels,bmin,bmax){
       for(let ry=0;ry<7;ry++)for(let rx=0;rx<cw;rx++)if(rows[ry][rx]==="1"){
         const bx=px+ci*advance+rx*pixel,by=pz+(6-ry)*pixel;
         let d;
-        // Pattern Generator text is placed on the bottom (Z-min) face.
         const bx2=px+ci*advance+rx*pixel;
-        const yy=bmin[1]+(bmax[1]-bmin[1])*clamp((Number(t.y)||50)/100,0,1)-H/2;
-        const zz=bmin[2]-depth/2+embed;
-        d=roundedBox(x-(bx2+pixel/2),y-(yy+pixel/2),z-zz,pixel/2+0.05,pixel/2+0.05,depth/2);
+        if(bottomAxisY){
+          // Gumdrop's vertical axis is Y, so its bottom is the Y-min face.
+          const zz=bmin[2]+(bmax[2]-bmin[2])*clamp((Number(t.y)||50)/100,0,1)-H/2;
+          const yy=bmin[1]-depth/2+embed;
+          d=roundedBox(x-(bx2+pixel/2),y-yy,z-(zz+pixel/2),pixel/2+0.05,depth/2,pixel/2+0.05);
+        }else{
+          // Normal printable shapes use Z as the vertical axis.
+          const yy=bmin[1]+(bmax[1]-bmin[1])*clamp((Number(t.y)||50)/100,0,1)-H/2;
+          const zz=bmin[2]-depth/2+embed;
+          d=roundedBox(x-(bx2+pixel/2),y-(yy+pixel/2),z-zz,pixel/2+0.05,pixel/2+0.05,depth/2);
+        }
         if(d<f)f=d;
       }
     }
@@ -197,6 +204,7 @@ function buildFieldAndBounds(spec){
   // Keep the original model bounds for text positioning, then expand the
   // meshing bounds so the raised bottom text is actually sampled.
   const modelMin=bmin.slice(),modelMax=bmax.slice();
+  const bottomAxisY=parts.some(p=>p.type==="gumdrop");
   if(textOn){
     let extra=0;
     for(const t of textLabels){
@@ -204,9 +212,10 @@ function buildFieldAndBounds(spec){
       const size=Math.max(1,Number(t.size)||8);
       extra=Math.max(extra,depth+size*0.04);
     }
-    bmin[2]-=extra;
+    if(bottomAxisY)bmin[1]-=extra;
+    else bmin[2]-=extra;
   }
-  const baseWithText=(x,y,z)=>textOn?Math.min(base(x,y,z),textSDF(x,y,z,textLabels,modelMin,modelMax)):base(x,y,z);
+  const baseWithText=(x,y,z)=>textOn?Math.min(base(x,y,z),textSDF(x,y,z,textLabels,modelMin,modelMax,bottomAxisY)):base(x,y,z);
   const pattern=spec.pattern||"none";
   const span=Math.max(bmax[0]-bmin[0],bmax[1]-bmin[1],bmax[2]-bmin[2],1);
   const textureOn=!!spec.texture && Number(spec.textureAmount)>0;
@@ -268,7 +277,7 @@ function buildFieldAndBounds(spec){
     )-t;
     const patternField=Math.max(texturedBase(x,y,z),lattice);
     // Text is a raised feature, so apply it after the infill field.
-    const textField=textOn ? textSDF(x,y,z,textLabels,bmin,bmax) : Infinity;
+    const textField=textOn ? textSDF(x,y,z,textLabels,modelMin,modelMax,bottomAxisY) : Infinity;
     const finalField=Math.min(patternField,textField);
     return wallOn ? Math.min(finalField,shell(x,y,z)) : finalField;
   },bmin,bmax,pattern:{kind:pattern,k,t}};
