@@ -861,7 +861,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v2.01.js');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v2.01.js?v=205');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
