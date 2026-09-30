@@ -229,7 +229,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.91</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.92</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -378,6 +378,15 @@ button:disabled{opacity:.5;cursor:default;}
       <input type="number" id="wallThickness" value="2" step="0.1" min="0.2" max="20">
     </div>
     <p class="hint">Texture adds raised bumps to the outside. Side walls add a solid outer wall around the pattern.</p>
+    <div class="checkrow">
+      <input type="checkbox" id="textToggle">
+      <label for="textToggle">Text</label>
+    </div>
+    <div id="textControls" style="display:none;">
+      <div id="textEntries"></div>
+      <button type="button" id="addTextBtn" class="btn-secondary" style="margin-top:8px;">+ Add text</button>
+      <p class="hint" style="margin-top:10px;">Add text to any side. Position uses percentages across the selected side.</p>
+    </div>
   </div>
 
   <div class="card">
@@ -649,7 +658,7 @@ async function generatePG(){
     const shape=shapeSel.value,roundedEl=document.getElementById('rounded');
     const textureOn=document.getElementById('textureToggle').checked;
     const wallsOn=document.getElementById('wallsToggle').checked;
-    const legacySpec={shape,size:shape==='cube'?val('p_size'):undefined,diameter:(shape==='sphere'||shape==='cylinder')?val('p_diameter'):undefined,height:shape==='cylinder'?val('p_height'):undefined,outerDiameter:shape==='ring'?val('p_outerDiameter'):undefined,tubeDiameter:shape==='ring'?val('p_tubeDiameter'):undefined,pattern:document.getElementById('pattern').value,periods:val('periods'),thickness:val('thickness'),texture:textureOn,textureAmount:textureOn?val('textureAmount'):0,walls:wallsOn,wallThickness:wallsOn?val('wallThickness'):0,rounded:roundedEl?roundedEl.checked:false,cornerRadius:roundedEl?val('cornerRadius'):0};
+    const legacySpec={shape,size:shape==='cube'?val('p_size'):undefined,diameter:(shape==='sphere'||shape==='cylinder')?val('p_diameter'):undefined,height:shape==='cylinder'?val('p_height'):undefined,outerDiameter:shape==='ring'?val('p_outerDiameter'):undefined,tubeDiameter:shape==='ring'?val('p_tubeDiameter'):undefined,pattern:document.getElementById('pattern').value,periods:val('periods'),thickness:val('thickness'),texture:textureOn,textureAmount:textureOn?val('textureAmount'):0,walls:wallsOn,wallThickness:wallsOn?val('wallThickness'):0,rounded:roundedEl?roundedEl.checked:false,cornerRadius:roundedEl?val('cornerRadius'):0,textEnabled:textToggle.checked,textLabels:readTextEntries()};
     const res=Math.max(24,Math.min(48,parseInt(document.getElementById('quality').value,10)));
     const key=JSON.stringify({legacySpec,res}),tris=await getMeshFromWorker(legacySpec,res,key,'pattern');
     if(!tris.length){status.textContent='No surface found — try adjusting the dimensions or infill settings.';btn.disabled=false;return;}
@@ -666,6 +675,36 @@ async function generatePG(){
 }
 const textureToggle=document.getElementById('textureToggle'),textureControls=document.getElementById('textureControls'),textureAmount=document.getElementById('textureAmount'),textureAmountValue=document.getElementById('textureAmountValue');
 const wallsToggle=document.getElementById('wallsToggle'),wallControls=document.getElementById('wallControls');
+const textToggle=document.getElementById('textToggle'),textControls=document.getElementById('textControls'),textEntries=document.getElementById('textEntries'),addTextBtn=document.getElementById('addTextBtn');
+let textEntryId=0;
+function addTextEntry(data={}){
+  const id=++textEntryId,el=document.createElement('div');el.className='card';el.style.margin='0 0 10px';el.style.padding='12px';
+  el.innerHTML='<div class="row"><div><label>Text</label><input type="text" class="textValue" value="'+esc(data.text||'G3D')+'" maxlength="24"></div><div><label>Size (mm)</label><input type="number" class="textSize" value="'+(Number(data.size)||8)+'" min="1" max="100" step="0.5"></div></div>'+
+    '<div class="row"><div><label>Side</label><select class="textSide"><option value="front">Front</option><option value="back">Back</option><option value="left">Left</option><option value="right">Right</option><option value="top">Top</option><option value="bottom">Bottom</option></select></div><div><label>Depth (mm)</label><input type="number" class="textDepth" value="'+(Number(data.depth)||1)+'" min="0.2" max="10" step="0.1"></div></div>'+
+    '<div class="row"><div><label>Horizontal position (%)</label><input type="number" class="textX" value="'+(Number(data.x)||50)+'" min="0" max="100" step="1"></div><div><label>Vertical position (%)</label><input type="number" class="textY" value="'+(Number(data.y)||50)+'" min="0" max="100" step="1"></div></div>'+
+    '<button type="button" class="btn-secondary removeTextBtn" style="padding:8px;margin-top:2px;">Remove text</button>';
+  textEntries.appendChild(el);
+  const side=el.querySelector('.textSide');side.value=data.side||'front';
+  el.querySelector('.removeTextBtn').onclick=()=>{el.remove();};
+}
+function readTextEntries(){
+  if(!textToggle.checked)return [];
+  return Array.from(textEntries.children).map(el=>({
+    text:el.querySelector('.textValue').value.slice(0,24),
+    size:clamp(parseFloat(el.querySelector('.textSize').value)||8,1,100),
+    side:el.querySelector('.textSide').value,
+    depth:clamp(parseFloat(el.querySelector('.textDepth').value)||1,0.2,10),
+    x:clamp(parseFloat(el.querySelector('.textX').value)||50,0,100),
+    y:clamp(parseFloat(el.querySelector('.textY').value)||50,0,100)
+  })).filter(x=>x.text.trim());
+}
+function updateTextUI(){
+  textControls.style.display=textToggle.checked?'':'none';
+  if(textToggle.checked&&!textEntries.children.length)addTextEntry();
+}
+textToggle.addEventListener('change',updateTextUI);
+addTextBtn.addEventListener('click',()=>addTextEntry());
+updateTextUI();
 function updateTextureUI(){
   textureControls.style.display=textureToggle.checked?'':'none';
   const n=parseInt(textureAmount.value,10)||0;
@@ -727,6 +766,7 @@ function normalizeSpec(spec){
   s.periods=clamp(num(s.periods,2.5),0.5,12);
   s.thickness=clamp(num(s.thickness,1.5),0.2,12);
   s.quality=clamp(Math.round(num(s.quality,32)),24,36);
+  s.textLabels=Array.isArray(s.textLabels)?s.textLabels.slice(0,12).map(t=>({text:String(t.text||'').slice(0,24),size:clamp(num(t.size,8),1,100),side:['front','back','left','right','top','bottom'].includes(t.side)?t.side:'front',depth:clamp(num(t.depth,1),0.2,10),x:clamp(num(t.x,50),0,100),y:clamp(num(t.y,50),0,100)})).filter(t=>t.text.trim()):[];
   return s;
 }
 function mergeAISpec(raw,prev){
