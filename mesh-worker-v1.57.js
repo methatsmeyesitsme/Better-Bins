@@ -123,6 +123,44 @@ function partBounds(p){
   r*=s;z*=s;
   return [[(pos[0]||0)-r,(pos[1]||0)-r,(pos[2]||0)-z],[(pos[0]||0)+r,(pos[1]||0)+r,(pos[2]||0)+z]];
 }
+const FONT5x7={
+"A":["01110","10001","10001","11111","10001","10001","10001"],"B":["11110","10001","10001","11110","10001","10001","11110"],"C":["01111","10000","10000","10000","10000","10000","01111"],"D":["11110","10001","10001","10001","10001","10001","11110"],"E":["11111","10000","10000","11110","10000","10000","11111"],"F":["11111","10000","10000","11110","10000","10000","10000"],"G":["01111","10000","10000","10111","10001","10001","01111"],"H":["10001","10001","10001","11111","10001","10001","10001"],"I":["11111","00100","00100","00100","00100","00100","11111"],"J":["00111","00010","00010","00010","00010","10010","01100"],"K":["10001","10010","10100","11000","10100","10010","10001"],"L":["10000","10000","10000","10000","10000","10000","11111"],"M":["10001","11011","10101","10101","10001","10001","10001"],"N":["10001","11001","10101","10011","10001","10001","10001"],"O":["01110","10001","10001","10001","10001","10001","01110"],"P":["11110","10001","10001","11110","10000","10000","10000"],"Q":["01110","10001","10001","10001","10101","10010","01101"],"R":["11110","10001","10001","11110","10100","10010","10001"],"S":["01111","10000","10000","01110","00001","00001","11110"],"T":["11111","00100","00100","00100","00100","00100","00100"],"U":["10001","10001","10001","10001","10001","10001","01110"],"V":["10001","10001","10001","10001","10001","01010","00100"],"W":["10001","10001","10001","10101","10101","11011","10001"],"X":["10001","10001","01010","00100","01010","10001","10001"],"Y":["10001","10001","01010","00100","00100","00100","00100"],"Z":["11111","00001","00010","00100","01000","10000","11111"],
+"0":["01110","10001","10011","10101","11001","10001","01110"],"1":["00100","01100","00100","00100","00100","00100","01110"],"2":["01110","10001","00001","00010","00100","01000","11111"],"3":["11110","00001","00001","01110","00001","00001","11110"],"4":["00010","00110","01010","10010","11111","00010","00010"],"5":["11111","10000","10000","11110","00001","00001","11110"],"6":["01110","10000","10000","11110","10001","10001","01110"],"7":["11111","00001","00010","00100","01000","01000","01000"],"8":["01110","10001","10001","01110","10001","10001","01110"],"9":["01110","10001","10001","01111","00001","00001","01110"],
+" ":["000","000","000","000","000","000","000"],"-":["00000","00000","00000","11111","00000","00000","00000"],"_":["00000","00000","00000","00000","00000","00000","11111"]
+};
+function textSDF(x,y,z,labels,bmin,bmax){
+  let f=Infinity;
+  for(const t of labels||[]){
+    const text=String(t.text||'').toUpperCase();
+    const H=Math.max(1,Number(t.size)||8),pixel=H/7,gap=pixel*0.32,advance=5*pixel+gap*2;
+    const total=Math.max(0,text.length*advance-gap),px=bmin[0]+(bmax[0]-bmin[0])*clamp((Number(t.x)||50)/100,0,1)-total/2;
+    const pz=bmin[2]+(bmax[2]-bmin[2])*clamp((Number(t.y)||50)/100,0,1)-H/2;
+    const depth=Math.max(0.2,Number(t.depth)||1);
+    for(let ci=0;ci<text.length;ci++){
+      const rows=FONT5x7[text[ci]]||FONT5x7[" "],cw=(rows[0]||"00000").length;
+      for(let ry=0;ry<7;ry++)for(let rx=0;rx<cw;rx++)if(rows[ry][rx]==="1"){
+        const bx=px+ci*advance+rx*pixel,by=pz+(6-ry)*pixel;
+        let d;
+        if(t.side==="front"||t.side==="back"){
+          const yy=t.side==="front"?bmax[1]+depth/2:bmin[1]-depth/2;
+          d=roundedBox(x-(bx+pixel/2),y-yy,z-(by+pixel/2),pixel/2+0.05,depth/2,pixel/2+0.05);
+        }else if(t.side==="left"||t.side==="right"){
+          const yy=bmin[1]+(bmax[1]-bmin[1])*clamp((Number(t.x)||50)/100,0,1)-total/2+ci*advance+rx*pixel;
+          const zz=by;
+          const xx=t.side==="right"?bmax[0]+depth/2:bmin[0]-depth/2;
+          d=roundedBox(x-xx,y-(yy+pixel/2),z-(zz+pixel/2),depth/2,pixel/2+0.05,pixel/2+0.05);
+        }else{
+          const bx2=px+ci*advance+rx*pixel;
+          const yy=bmin[1]+(bmax[1]-bmin[1])*clamp((Number(t.y)||50)/100,0,1)-H/2;
+          const zz=t.side==="top"?bmax[2]+depth/2:bmin[2]-depth/2;
+          d=roundedBox(x-(bx2+pixel/2),y-(yy+pixel/2),z-zz,pixel/2+0.05,pixel/2+0.05,depth/2);
+        }
+        if(d<f)f=d;
+      }
+    }
+  }
+  return f;
+}
 function buildFieldAndBounds(spec){
   const parts=Array.isArray(spec.parts)&&spec.parts.length?spec.parts:[{type:"box",size:[40,40,40]}];
   const funcs=parts.map(makePartSDF);
@@ -141,6 +179,9 @@ function buildFieldAndBounds(spec){
     }
     return f;
   };
+  const textLabels=Array.isArray(spec.textLabels)?spec.textLabels:[];
+  const textOn=textLabels.length>0;
+  const baseWithText=(x,y,z)=>textOn?Math.min(base(x,y,z),textSDF(x,y,z,textLabels,bmin,bmax)):base(x,y,z);
   const pattern=spec.pattern||"none";
   const span=Math.max(bmax[0]-bmin[0],bmax[1]-bmin[1],bmax[2]-bmin[2],1);
   const textureOn=!!spec.texture && Number(spec.textureAmount)>0;
@@ -148,10 +189,10 @@ function buildFieldAndBounds(spec){
   const textureAmp=textureOn ? Math.min(3.5,Math.max(0.15,span*0.012)*textureAmount) : 0;
   const textureK=2*Math.PI*(6+textureAmount*8)/span;
   const texturedBase=(x,y,z)=>{
-    if(!textureOn)return base(x,y,z);
+    if(!textureOn)return baseWithText(x,y,z);
     const sx=Math.sin(x*textureK),sy=Math.sin(y*textureK),sz=Math.sin(z*textureK);
     const bump=Math.pow(Math.max(0,(sx*sy*sz+1)/2),1.35);
-    return base(x,y,z)-textureAmp*bump;
+    return baseWithText(x,y,z)-textureAmp*bump;
   };
   const wallOn=!!spec.walls && Number(spec.wallThickness)>0;
   const wallThickness=Math.max(0.2,Math.min(span/2,Number(spec.wallThickness)||0));
@@ -301,7 +342,7 @@ function legacyPatternToSpec(p){
   else if(p.shape==="cylinder")part={type:"cylinder",radius:(p.diameter||50)/2,height:p.height||50,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"};
   else if(p.shape==="ring"){const minor=(p.tubeDiameter||16)/2,major=Math.max(minor+0.5,(p.outerDiameter||60)/2-minor);part={type:"torus",majorRadius:major,minorRadius:minor,position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"};}
   else{const size=p.size||50;part=p.rounded?{type:"roundedBox",size:[size,size,size],radius:Math.min(p.cornerRadius||5,size/2),position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"}:{type:"box",size:[size,size,size],position:[0,0,0],rotation:[0,0,0],scale:[1,1,1],op:"union"};}
-  return{parts:[part],pattern:p.pattern||"gyroid",periods:Number(p.periods)||2.5,thickness:Number(p.thickness)||1.5,texture:!!p.texture,textureAmount:Number(p.textureAmount)||0,walls:!!p.walls,wallThickness:Number(p.wallThickness)||0};
+  return{parts:[part],pattern:p.pattern||"gyroid",periods:Number(p.periods)||2.5,thickness:Number(p.thickness)||1.5,texture:!!p.texture,textureAmount:Number(p.textureAmount)||0,walls:!!p.walls,wallThickness:Number(p.wallThickness)||0,textLabels:Array.isArray(p.textLabels)?p.textLabels:[]};
 }
 self.onmessage=async(e)=>{
   const m=e.data||{};
