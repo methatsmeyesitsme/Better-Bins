@@ -201,24 +201,38 @@ function buildFieldAndBounds(spec){
   const span=Math.max(bmax[0]-bmin[0],bmax[1]-bmin[1],bmax[2]-bmin[2],1);
   const textureOn=!!spec.texture && Number(spec.textureAmount)>0;
   const textureAmount=Math.max(0,Math.min(100,Number(spec.textureAmount)||0))/100;
-  const textureAmp=textureOn ? Math.min(1.35,Math.max(0.22,span*0.012)*textureAmount) : 0;
-  const textureCycles=5.5+textureAmount*3.5;
-  const textureK=2*Math.PI*textureCycles/span;
-  const textureSpacing=2*Math.PI/textureK;
-  const textureBumpRadius=textureSpacing*0.46;
+  // Texture uses small, rounded, randomly scattered dome bumps.
+  // Higher texture amounts increase density rather than bump size.
+  const textureCycles=8+textureAmount*16;
+  const textureCell=span/Math.max(1,textureCycles);
+  const textureBumpRadius=textureCell*0.34;
+  const textureAmp=textureOn ? Math.min(0.58,Math.max(0.12,span*0.005)*textureAmount) : 0;
+  const hash3=(ix,iy,iz)=>{
+    const n=Math.sin(ix*127.1+iy*311.7+iz*74.7)*43758.5453123;
+    return n-Math.floor(n);
+  };
   const texturedBase=(x,y,z)=>{
     const b=baseWithText(x,y,z);
     if(!textureOn)return b;
-    // Rounded gumdrop-style domes. Each bump is a smooth positive cap
-    // added outside the original surface; there are no dents or cracks.
-    const nearest=(v)=>{
-      const q=Math.sin(0.5*textureK*v);
-      return 2*Math.asin(Math.abs(q))/textureK;
-    };
-    const gx=nearest(x),gy=nearest(y),gz=nearest(z);
-    const gd=Math.hypot(gx,gy,gz);
-    const cap=Math.max(0,1-gd/textureBumpRadius);
+    const fx=x/textureCell,fy=y/textureCell,fz=z/textureCell;
+    const ix=Math.floor(fx),iy=Math.floor(fy),iz=Math.floor(fz);
+    let nearestDist=Infinity;
+    // One jittered point per cell gives a dense, organic, non-lined layout.
+    for(let ox=-1;ox<=1;ox++)for(let oy=-1;oy<=1;oy++)for(let oz=-1;oz<=1;oz++){
+      const cx=ix+ox,cy=iy+oy,cz=iz+oz;
+      const jx=(hash3(cx,cy,cz)-0.5)*0.72;
+      const jy=(hash3(cx+19,cy-7,cz+31)-0.5)*0.72;
+      const jz=(hash3(cx-13,cy+23,cz-5)-0.5)*0.72;
+      const px=(cx+0.5+jx)*textureCell;
+      const py=(cy+0.5+jy)*textureCell;
+      const pz=(cz+0.5+jz)*textureCell;
+      const d=Math.hypot(x-px,y-py,z-pz);
+      if(d<nearestDist)nearestDist=d;
+    }
+    const cap=Math.max(0,1-nearestDist/textureBumpRadius);
     const bump=cap*cap*(3-2*cap);
+    // Subtracting the positive dome raises the surface outward only;
+    // it never creates dents or inward texture.
     return b-textureAmp*bump;
   };
   const wallOn=!!spec.walls && Number(spec.wallThickness)>0;
