@@ -229,7 +229,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v2.02</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v2.03</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -276,7 +276,7 @@ button:disabled{opacity:.5;cursor:default;}
     </div>
     <div class="settingsCard">
       <p class="sectitle">Artifacts</p>
-      <p class="hint" style="margin:0 0 10px;">Saved STL files belong to your signed-in account. Guests do not get saved artifacts.</p>
+      <p class="hint" style="margin:0 0 10px;">Downloaded STL files are saved to your signed-in account. Generating or previewing a model does not save it.</p>
       <div id="artifactList"></div>
     </div>
   </div>
@@ -486,7 +486,7 @@ function meshStats(tris){
   }
   return {x:maxX-minX,y:maxY-minY,z:maxZ-minZ,volume:Math.abs(vol)};
 }
-function downloadExtDataAsTxt(status, dlBtn, tris, filename, cb){
+function downloadExtDataAsTxt(status, dlBtn, tris, filename, source, cb){
   (async ()=>{
     dlBtn.disabled = true;
     status.textContent = 'Preparing STL...';
@@ -501,7 +501,19 @@ function downloadExtDataAsTxt(status, dlBtn, tris, filename, cb){
       a.click();
       a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),1000);
-      status.textContent = `Saved ${filename}.`;
+
+      // A design becomes an Artifact only after the STL download is initiated.
+      try{
+        const saved = await saveArtifact(source, filename, stlBytes, Math.floor(tris.length/12));
+        if(saved){
+          status.textContent = `Downloaded ${filename} and saved it to Artifacts.`;
+        }else{
+          status.textContent = `Downloaded ${filename}.`;
+        }
+      }catch(saveErr){
+        console.error('Artifact save failed:', saveErr);
+        status.textContent = `Downloaded ${filename}, but it could not be added to Artifacts.`;
+      }
     } catch(err){
       status.textContent = 'Download failed: ' + (err && err.message || err);
     }
@@ -592,7 +604,7 @@ function formatBytes(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toF
 function renderArtifacts(){
   const el=document.getElementById('artifactList');if(!el)return;
   if(!isLoggedIn()){el.innerHTML='<div class="artifactEmpty">Sign in to save and view artifacts.</div>';return;}
-  if(!artifactsMeta.length){el.innerHTML='<div class="artifactEmpty">No artifacts yet. Generate an STL and it will appear here.</div>';return;}
+  if(!artifactsMeta.length){el.innerHTML='<div class="artifactEmpty">No artifacts yet. Download an STL and it will appear here.</div>';return;}
   el.innerHTML=artifactsMeta.map(x=>'<div class="artifactItem"><div class="artifactMain"><div class="artifactName">'+esc(x.filename)+'</div><div class="artifactMeta">'+esc(x.source)+' · '+formatBytes(x.bytes)+' · '+x.triangles.toLocaleString()+' triangles</div></div><div class="artifactActions"><button class="btn-secondary artifactDownload" data-id="'+x.id+'">Download</button><button class="btn-secondary artifactCopy" data-id="'+x.id+'">Copy</button><button class="btn-secondary artifactDelete" data-id="'+x.id+'">Delete</button></div></div>').join('');
   el.querySelectorAll('.artifactDownload').forEach(b=>b.onclick=()=>downloadArtifact(b.dataset.id));el.querySelectorAll('.artifactCopy').forEach(b=>b.onclick=()=>copyArtifact(b.dataset.id));el.querySelectorAll('.artifactDelete').forEach(b=>b.onclick=()=>removeArtifact(b.dataset.id));
 }
@@ -668,12 +680,11 @@ async function generatePG(){
     if(!tris.length){status.textContent='No surface found — try adjusting the dimensions or infill settings.';btn.disabled=false;return;}
     lastTrisPG=tris;let nameVal=document.getElementById('customName').value.trim();if(!nameVal)nameVal=shape+'_'+legacySpec.pattern+'_infill';
     lastFilenamePG=nameVal.replace(/\.stl$/i,'')+'.stl';
-    const triCount=Math.floor(tris.length/12),stl=trisToSTL(tris);
+    const triCount=Math.floor(tris.length/12);
     if(!viewerPG)viewerPG=await createViewer('previewWrap','wireToggle');
     document.getElementById('previewCard').style.display='';viewerPG.showMesh(tris);
-    saveArtifact('Pattern Generator',lastFilenamePG,stl,triCount).then(saved=>{
-      status.textContent='Generated '+triCount.toLocaleString()+' triangles.'+(saved?' Saved to Artifacts.':' Sign in to save it to Artifacts.');
-    }).catch(console.error);btn.disabled=false;
+    status.textContent='Generated '+triCount.toLocaleString()+' triangles. Download the STL to add it to Artifacts.';
+    btn.disabled=false;
   }catch(err){console.error(err);status.textContent='Error: '+(err.message||err);}
   btn.disabled=false;promptEl.value='';promptEl.style.height='auto';
 }
@@ -721,7 +732,7 @@ updateTextureUI();updateWallUI();
 
 document.getElementById('genBtn').addEventListener('click', generatePG);
 document.getElementById('dlBtn').addEventListener('click', ()=>{
-  downloadExtDataAsTxt(document.getElementById('status'), document.getElementById('dlBtn'), lastTrisPG, lastFilenamePG);
+  downloadExtDataAsTxt(document.getElementById('status'), document.getElementById('dlBtn'), lastTrisPG, lastFilenamePG, 'Pattern Generator');
 });
 
 
@@ -1048,7 +1059,7 @@ function renderLastResultCard(){
   const wrap=document.createElement('div');wrap.className='chatMsgWrap assistant';wrap.appendChild(card);box.appendChild(wrap);
   if(available){
     card.querySelector('[data-result-action="preview"]').onclick=()=>document.getElementById('aiPreviewCard').scrollIntoView({behavior:'smooth',block:'center'});
-    card.querySelector('[data-result-action="download"]').onclick=()=>downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiSendBtn'),lastTrisAI,r.filename);
+    card.querySelector('[data-result-action="download"]').onclick=()=>downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiSendBtn'),lastTrisAI,r.filename,'G3D AI');
   }
 }
 
@@ -1098,7 +1109,7 @@ async function copyCurrentSTL(){
 }
 function downloadCurrentSTL(){
   if(!lastTrisAI)return;
-  downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiDownloadSTLBtn'),lastTrisAI,lastFilenameAI);
+  downloadExtDataAsTxt(document.getElementById('aiStatus'),document.getElementById('aiDownloadSTLBtn'),lastTrisAI,lastFilenameAI,'G3D AI');
 }
 document.getElementById('aiCopySTLBtn').addEventListener('click',copyCurrentSTL);
 document.getElementById('aiDownloadSTLBtn').addEventListener('click',downloadCurrentSTL);
@@ -1363,16 +1374,15 @@ async function generateAI(){
     if(window.g3dAIStopRequested)throw new DOMException('Aborted','AbortError');
     if(!tris.length){pendingMsg.text='I couldn’t build a printable surface from that request. Try changing the dimensions or description.';status.textContent=pendingMsg.text;active.updated=Date.now();saveChats();renderChat();return;}
     aiPrevSpec=spec;lastTrisAI=tris;lastFilenameAI=nameFromSpec(spec).replace(/\s+/g,'_')+'.stl';
-    const triCount=Math.floor(tris.length/12),stl=trisToSTL(tris);
+    const triCount=Math.floor(tris.length/12);
     if(!viewerAI)viewerAI=await createViewer('aiPreviewWrap','aiWireToggle');
     document.getElementById('aiPreviewCard').style.display='';viewerAI.showMesh(tris);
-    const saved=await saveArtifact('G3D AI',lastFilenameAI,stl,triCount);
     pendingMsg.result={filename:lastFilenameAI,triangles:triCount,dimensions:meshStats(tris)};
     active.spec=spec;active.updated=Date.now();saveChats();renderChats();renderChat();
     const stats=meshStats(tris),grid=document.getElementById('aiInfoGrid'),modelInfo=window.g3dCloud.info?window.g3dCloud.info():{label:'Cloud provider'};
     grid.innerHTML='<div><span>AI model</span>'+esc(modelInfo.name||modelInfo.label||'Cloud provider')+'</div><div><span>Geometry</span>'+spec.parts.length+' custom parts / CSG</div><div><span>File name</span>'+lastFilenameAI+'</div><div><span>Triangles</span>'+triCount.toLocaleString()+'</div><div><span>X dimension</span>'+stats.x.toFixed(1)+' mm</div><div><span>Y dimension</span>'+stats.y.toFixed(1)+' mm</div><div><span>Z dimension</span>'+stats.z.toFixed(1)+' mm</div><div><span>Approx. volume</span>'+(stats.volume/1000).toFixed(2)+' cm³</div>';
     document.getElementById('aiInfoCard').style.display='';
-    status.textContent='Model ready.'+(saved?' Saved to Artifacts.':' Sign in to save it to Artifacts.');
+    status.textContent='Model ready. Download the STL to add it to Artifacts.';
   }catch(err){
     recordProviderQuota(err);
     if(err&&err.name==='AbortError'){
