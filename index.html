@@ -229,7 +229,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v2.06</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v2.07</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -695,7 +695,7 @@ let textEntryId=0;
 function addTextEntry(data={}){
   const id=++textEntryId,el=document.createElement('div');el.className='card';el.style.margin='0 0 10px';el.style.padding='12px';
   el.innerHTML='<div class="row"><div><label>Text</label><input type="text" class="textValue" value="'+esc(data.text||'G3D')+'" maxlength="24"></div><div><label>Size (mm)</label><input type="number" class="textSize" value="'+(Number(data.size)||8)+'" min="1" max="100" step="0.5"></div></div>'+
-    '<div class="row"><div><label>Side</label><select class="textSide"><option value="front">Front</option><option value="back">Back</option><option value="left">Left</option><option value="right">Right</option><option value="top">Top</option><option value="bottom">Bottom</option></select></div><div><label>Depth (mm)</label><input type="number" class="textDepth" value="'+(Number(data.depth)||1)+'" min="0.2" max="10" step="0.1"></div></div>'+
+    '<div class="row"><div><label>Placement</label><select class="textSide"><option value="bottom" selected>Bottom</option></select></div><div><label>Depth (mm)</label><input type="number" class="textDepth" value="'+(Number(data.depth)||1)+'" min="0.2" max="10" step="0.1"></div></div>'+
     '<div class="row"><div><label>Horizontal position (%)</label><input type="number" class="textX" value="'+(Number(data.x)||50)+'" min="0" max="100" step="1"></div><div><label>Vertical position (%)</label><input type="number" class="textY" value="'+(Number(data.y)||50)+'" min="0" max="100" step="1"></div></div>'+
     '<button type="button" class="btn-secondary removeTextBtn" style="padding:8px;margin-top:2px;">Remove text</button>';
   textEntries.appendChild(el);
@@ -861,7 +861,7 @@ Return ONLY the JSON object.`;
 let aiPrevSpec=null;
 let viewerAI=null;
 let lastTrisAI=null,lastFilenameAI='g3d_model.stl';
-const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v2.01.js?v=206');
+const meshCache=new Map(),meshWorker=new Worker('./mesh-worker-v2.01.js?v=207');
 let meshRequestId=0;const meshWaiters=new Map();
 meshWorker.addEventListener('message',e=>{
   const m=e.data||{};
