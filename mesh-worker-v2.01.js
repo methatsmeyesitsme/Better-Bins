@@ -124,8 +124,10 @@ function partBounds(p){
   switch(p.type){
     case "sphere": r=p.radius||20;z=r;break;
     case "gumdrop":{
+      // Gumdrop's vertical axis is Y: radius on X/Z, full height on Y.
       const gr=p.radius||20, gh=(p.height||40)/2;
-      r=gr;z=gh;break;
+      r=gr;
+      return [[(pos[0]||0)-r,(pos[1]||0)-gh,(pos[2]||0)-r],[(pos[0]||0)+r,(pos[1]||0)+gh,(pos[2]||0)+r]];
     }
     case "cylinder":
     case "tube": r=Math.max(p.radius||p.outerRadius||20,p.innerRadius||0);z=(p.height||40)/2;break;
