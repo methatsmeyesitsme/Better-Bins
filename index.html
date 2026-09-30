@@ -663,7 +663,7 @@ async function generatePG(){
     const textureOn=document.getElementById('textureToggle').checked;
     const wallsOn=document.getElementById('wallsToggle').checked;
     const legacySpec={shape,size:shape==='cube'?val('p_size'):undefined,diameter:(shape==='sphere'||shape==='cylinder'||shape==='gumdrop')?val('p_diameter'):undefined,height:(shape==='cylinder'||shape==='gumdrop')?val('p_height'):undefined,outerDiameter:shape==='ring'?val('p_outerDiameter'):undefined,tubeDiameter:shape==='ring'?val('p_tubeDiameter'):undefined,pattern:document.getElementById('pattern').value,periods:val('periods'),thickness:val('thickness'),texture:textureOn,textureAmount:textureOn?val('textureAmount'):0,walls:wallsOn,wallThickness:wallsOn?val('wallThickness'):0,rounded:roundedEl?roundedEl.checked:false,cornerRadius:roundedEl?val('cornerRadius'):0,textEnabled:textToggle.checked,textLabels:readTextEntries()};
-    const res=Math.max(24,Math.min(48,parseInt(document.getElementById('quality').value,10)));
+    const res=Math.max(24,Math.min(192,parseInt(document.getElementById('quality').value,10)));
     const key=JSON.stringify({legacySpec,res}),tris=await getMeshFromWorker(legacySpec,res,key,'pattern');
     if(!tris.length){status.textContent='No surface found — try adjusting the dimensions or infill settings.';btn.disabled=false;return;}
     lastTrisPG=tris;let nameVal=document.getElementById('customName').value.trim();if(!nameVal)nameVal=shape+'_'+legacySpec.pattern+'_infill';
