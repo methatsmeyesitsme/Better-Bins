@@ -201,9 +201,10 @@ function buildFieldAndBounds(spec){
   };
   const textLabels=Array.isArray(spec.textLabels)?spec.textLabels:[];
   const textOn=textLabels.length>0;
-  // Keep the original model bounds for text positioning, then expand the
-  // meshing bounds so the raised bottom text is actually sampled.
+  // Keep the original model bounds for positioning.
   const modelMin=bmin.slice(),modelMax=bmax.slice();
+  // Pattern Generator's Gumdrop is vertical on Y; the other built-in
+  // Pattern Generator shapes use Z as their vertical axis.
   const bottomAxisY=parts.some(p=>p.type==="gumdrop");
   if(textOn){
     let extra=0;
@@ -236,8 +237,11 @@ function buildFieldAndBounds(spec){
   const texturedBase=(x,y,z)=>{
     const b=baseWithText(x,y,z);
     if(!textureOn)return b;
-    // Keep the flat bottom surface completely free of texture bumps.
-    if(y-bmin[1] < textureBumpRadius)return b;
+    // Keep the actual bottom of the model completely free of texture.
+    // Gumdrop uses Y as its vertical axis; the other Pattern Generator
+    // shapes use Z as their vertical axis.
+    const bottomDistance=bottomAxisY ? (y-modelMin[1]) : (z-modelMin[2]);
+    if(bottomDistance < textureBumpRadius)return b;
     const fx=x/textureCell,fy=y/textureCell,fz=z/textureCell;
     const ix=Math.floor(fx),iy=Math.floor(fy),iz=Math.floor(fz);
     let nearestDist=Infinity;
