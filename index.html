@@ -229,7 +229,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.92</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v1.93</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -324,6 +324,7 @@ button:disabled{opacity:.5;cursor:default;}
           <option value="sphere">Ball / Sphere</option>
           <option value="cylinder">Cylinder</option>
           <option value="ring">Ring / Torus</option>
+          <option value="gumdrop">Gumdrop</option>
         </select>
       </div>
     </div>
@@ -608,9 +609,10 @@ const shapeParams = {
   cube: [ {id:'size', label:'Size (mm)', def:50, step:1} ],
   sphere: [ {id:'diameter', label:'Diameter (mm)', def:50, step:1} ],
   cylinder: [ {id:'diameter', label:'Diameter (mm)', def:50, step:1}, {id:'height', label:'Height (mm)', def:50, step:1} ],
-  ring: [ {id:'outerDiameter', label:'Outer diameter (mm)', def:60, step:1}, {id:'tubeDiameter', label:'Tube diameter (mm)', def:16, step:1} ]
+  ring: [ {id:'outerDiameter', label:'Outer diameter (mm)', def:60, step:1}, {id:'tubeDiameter', label:'Tube diameter (mm)', def:16, step:1} ],
+  gumdrop: [ {id:'diameter', label:'Diameter (mm)', def:50, step:1}, {id:'height', label:'Height (mm)', def:55, step:1} ]
 };
-const roundableShapes = {cube:true, cylinder:true, sphere:false, ring:false};
+const roundableShapes = {cube:true, cylinder:true, sphere:false, ring:false, gumdrop:false};
 const shapeSel = document.getElementById('shape');
 const paramsDiv = document.getElementById('shapeParams');
 
@@ -658,7 +660,7 @@ async function generatePG(){
     const shape=shapeSel.value,roundedEl=document.getElementById('rounded');
     const textureOn=document.getElementById('textureToggle').checked;
     const wallsOn=document.getElementById('wallsToggle').checked;
-    const legacySpec={shape,size:shape==='cube'?val('p_size'):undefined,diameter:(shape==='sphere'||shape==='cylinder')?val('p_diameter'):undefined,height:shape==='cylinder'?val('p_height'):undefined,outerDiameter:shape==='ring'?val('p_outerDiameter'):undefined,tubeDiameter:shape==='ring'?val('p_tubeDiameter'):undefined,pattern:document.getElementById('pattern').value,periods:val('periods'),thickness:val('thickness'),texture:textureOn,textureAmount:textureOn?val('textureAmount'):0,walls:wallsOn,wallThickness:wallsOn?val('wallThickness'):0,rounded:roundedEl?roundedEl.checked:false,cornerRadius:roundedEl?val('cornerRadius'):0,textEnabled:textToggle.checked,textLabels:readTextEntries()};
+    const legacySpec={shape,size:shape==='cube'?val('p_size'):undefined,diameter:(shape==='sphere'||shape==='cylinder'||shape==='gumdrop')?val('p_diameter'):undefined,height:(shape==='cylinder'||shape==='gumdrop')?val('p_height'):undefined,outerDiameter:shape==='ring'?val('p_outerDiameter'):undefined,tubeDiameter:shape==='ring'?val('p_tubeDiameter'):undefined,pattern:document.getElementById('pattern').value,periods:val('periods'),thickness:val('thickness'),texture:textureOn,textureAmount:textureOn?val('textureAmount'):0,walls:wallsOn,wallThickness:wallsOn?val('wallThickness'):0,rounded:roundedEl?roundedEl.checked:false,cornerRadius:roundedEl?val('cornerRadius'):0,textEnabled:textToggle.checked,textLabels:readTextEntries()};
     const res=Math.max(24,Math.min(48,parseInt(document.getElementById('quality').value,10)));
     const key=JSON.stringify({legacySpec,res}),tris=await getMeshFromWorker(legacySpec,res,key,'pattern');
     if(!tris.length){status.textContent='No surface found — try adjusting the dimensions or infill settings.';btn.disabled=false;return;}
