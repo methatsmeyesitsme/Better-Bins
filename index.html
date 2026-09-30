@@ -229,7 +229,7 @@ button:disabled{opacity:.5;cursor:default;}
 <script defer src="./g3d-cloud-v1.38.js"></script>
 </head>
 <body>
-<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v2.03</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
+<div class="g3dTop"><button class="g3dMenuBtn" id="chatMenuBtn" type="button">☰</button><span class="g3dVersion">G3D v2.04</span><span class="g3dAccountBadge" id="g3dAccountBadge">Guest</span></div>
 <div class="chatOptionsWrap">
   <button class="chatOptionsBtn" id="chatOptionsBtn" type="button" aria-label="Chat options" aria-expanded="false" title="Chat options">⋯</button>
   <div class="chatOptionsMenu" id="chatOptionsMenu" hidden>
@@ -1296,17 +1296,19 @@ function updateChatMemory(chat){
   chat.memory.summary=parts.join('\n\n').slice(0,3600);
   chat.memory.updatedAt=Date.now();
   chat.memory.messageCount=msgs.length;
+  chat.memory.cleared=false;
   return chat.memory.summary;
 }
 function getChatMemory(chat){
   if(!chat)return '';
+  if(chat.memory&&chat.memory.cleared)return '';
   if(!chat.memory||!chat.memory.summary)updateChatMemory(chat);
   return chat.memory&&chat.memory.summary||'';
 }
 function renderMemoryPanel(){
   const el=document.getElementById('memorySummary'),status=document.getElementById('memoryStatus'),chat=getChat();
   if(!el)return;
-  const mem=getChatMemory(chat);
+  const mem=chat&&chat.memory&&chat.memory.cleared?'':(chat&&chat.memory&&chat.memory.summary||'');
   el.value=mem||'Memory will appear here as you chat.';
   if(status)status.textContent=mem?(chat.memory.messageCount+' messages included · updated '+new Date(chat.memory.updatedAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})): 'No memory yet.';
 }
@@ -1316,7 +1318,9 @@ function refreshMemory(){
 }
 function clearMemory(){
   const chat=getChat();if(!chat)return;
-  chat.memory={summary:'',updatedAt:Date.now(),messageCount:0};saveChats();renderMemoryPanel();
+  chat.memory={summary:'',updatedAt:Date.now(),messageCount:0,cleared:true};
+  saveChats();
+  renderMemoryPanel();
 }
 let aiAbortController=null;
 async function generateAI(){
