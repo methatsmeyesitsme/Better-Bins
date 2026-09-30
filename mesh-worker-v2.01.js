@@ -156,8 +156,10 @@ function textSDF(x,y,z,labels,bmin,bmax,bottomAxisY=false){
     const H=Math.max(1,Number(t.size)||8),pixel=H/7,gap=pixel*0.32,advance=5*pixel+gap*2;
     const total=Math.max(0,text.length*advance-gap),px=bmin[0]+(bmax[0]-bmin[0])*clamp((Number(t.x)||50)/100,0,1)-total/2;
     const pz=bmin[2]+(bmax[2]-bmin[2])*clamp((Number(t.y)||50)/100,0,1)-H/2;
-    const depth=Math.max(0.2,Number(t.depth)||1);
-    const embed=Math.min(0.4,depth*0.45);
+    // Give text a substantial extrusion so the voxel/tetrahedral mesh cannot
+    // miss a thin feature at the bottom surface.
+    const depth=Math.max(1.5,Number(t.depth)||1);
+    const embed=Math.min(0.75,depth*0.5);
     for(let ci=0;ci<text.length;ci++){
       const rows=FONT5x7[text[ci]]||FONT5x7[" "],cw=(rows[0]||"00000").length;
       for(let ry=0;ry<7;ry++)for(let rx=0;rx<cw;rx++)if(rows[ry][rx]==="1"){
@@ -209,9 +211,9 @@ function buildFieldAndBounds(spec){
   if(textOn){
     let extra=0;
     for(const t of textLabels){
-      const depth=Math.max(0.2,Number(t.depth)||1);
+      const depth=Math.max(1.5,Number(t.depth)||1);
       const size=Math.max(1,Number(t.size)||8);
-      extra=Math.max(extra,depth+size*0.04);
+      extra=Math.max(extra,depth+size*0.08);
     }
     if(bottomAxisY)bmin[1]-=extra;
     else bmin[2]-=extra;
